@@ -39,6 +39,12 @@ export async function POST(request: Request) {
         { status: 503 }
       );
     }
+    if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+      return NextResponse.json(
+        { error: "Redis not configured. Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in Netlify environment variables." },
+        { status: 503 }
+      );
+    }
 
     const payload: CampaignVideoJobPayload = {
       userInput,
@@ -59,6 +65,13 @@ export async function POST(request: Request) {
     if (msg === "Not authenticated") {
       return NextResponse.json({ error: msg }, { status: 401 });
     }
-    return NextResponse.json({ error: msg }, { status: 500 });
+    if (msg.includes("Upstash Redis") || msg.includes("UPSTASH_")) {
+      return NextResponse.json(
+        { error: "Redis not configured. Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in Netlify environment variables." },
+        { status: 503 }
+      );
+    }
+    console.error("[start-campaign-video]", e);
+    return NextResponse.json({ error: "Failed to start campaign video" }, { status: 500 });
   }
 }
