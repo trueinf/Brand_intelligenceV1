@@ -67,7 +67,7 @@ export function GrowthChart({ data, yoYPercent }: GrowthChartProps) {
                     border: "1px solid var(--border)",
                     fontSize: "12px",
                   }}
-                  formatter={(value: number) => [value, "Score"]}
+                  formatter={(value: number | undefined) => [value ?? 0, "Score"]}
                 />
                 <Line
                   type="monotone"

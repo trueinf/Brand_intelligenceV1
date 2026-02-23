@@ -24,7 +24,7 @@ const defaultProps: StrategyVideoProps = {
 
 export const RemotionRoot: React.FC = () => {
   return (
-    <Composition<StrategyVideoProps>
+    <Composition
       id={COMPOSITION_ID}
       component={StrategyVideo}
       durationInFrames={getStrategyVideoDuration(defaultProps.scenes.length)}

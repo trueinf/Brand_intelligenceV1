@@ -59,7 +59,7 @@ export function ChannelMixChart({ data }: ChannelMixChartProps) {
                     border: "1px solid var(--border)",
                     fontSize: "12px",
                   }}
-                  formatter={(value: number, name: string) => [`${value}%`, name]}
+                  formatter={(value: number | undefined, name?: string) => [`${value ?? 0}%`, name ?? ""]}
                 />
                 <Legend
                   layout="horizontal"

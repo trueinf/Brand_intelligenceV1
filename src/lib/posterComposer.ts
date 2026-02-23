@@ -389,9 +389,9 @@ export async function composePoster(
   let meta = await sharp(baseBuffer).metadata();
   const origW = meta.width ?? baseW;
   const origH = meta.height ?? baseH;
-  baseBuffer = await sharp(baseBuffer)
-    .resize(baseW, baseH, { fit: "cover" })
-    .toBuffer();
+  baseBuffer = Buffer.from(
+    await sharp(baseBuffer).resize(baseW, baseH, { fit: "cover" }).toBuffer()
+  );
   meta = await sharp(baseBuffer).metadata();
   const w = meta.width ?? baseW;
   const h = meta.height ?? baseH;

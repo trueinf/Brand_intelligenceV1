@@ -12,6 +12,7 @@ import type {
 /** Inputs from dashboard (brand + keyword + strategy). */
 export interface CampaignGenerationInput {
   brandName: string;
+  campaignId?: string;
   brandOverview?: { name: string; domain: string; summary?: string };
   keywordIntelligence?: {
     coreKeywords?: string[];

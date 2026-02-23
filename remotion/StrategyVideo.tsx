@@ -33,8 +33,6 @@ export type StrategyVideoProps = {
   brandKit?: BrandKitVideo | null;
 };
 
-export type { VideoScene };
-
 export const StrategyVideo: React.FC<StrategyVideoProps> = ({
   title,
   scenes,

@@ -239,7 +239,7 @@ function DashboardContent() {
 
       <div className="flex flex-col gap-6 lg:flex-row">
         <motion.div
-          variants={{ hidden: {}, show: { staggerChildren: 0.06, delayChildren: 0.05 } }}
+          variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06, delayChildren: 0.05 } } }}
           initial="hidden"
           animate="show"
           className="grid min-w-0 flex-1 grid-cols-12 gap-4 lg:gap-6"

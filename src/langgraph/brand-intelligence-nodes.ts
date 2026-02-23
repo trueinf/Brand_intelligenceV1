@@ -106,7 +106,7 @@ export async function strategyInsightNode(
       brandOverview: mock.brandOverview,
       brandContext: mock.brandContext ?? undefined,
       campaigns: state.campaigns,
-      insights: state.strategyInsights,
+      insights,
       trafficTrend: mock.trafficTrend,
       channelMix: mock.channelMix,
     };
