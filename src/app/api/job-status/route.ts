@@ -1,21 +1,10 @@
 /**
  * GET /api/job-status?jobId=xxx
- * Returns status of an async job (e.g. video render). In-memory for now; replace with DB/Redis later.
+ * Returns status of an async job (e.g. video render).
  */
 
 import { NextResponse } from "next/server";
-import type { JobStatusResponse } from "@/types/platform";
-
-const jobStore = new Map<string, JobStatusResponse>();
-
-export function setJobStatus(jobId: string, data: Partial<JobStatusResponse>): void {
-  const existing = jobStore.get(jobId) ?? { jobId, status: "pending" };
-  jobStore.set(jobId, { ...existing, ...data });
-}
-
-export function getJobStatus(jobId: string): JobStatusResponse | null {
-  return jobStore.get(jobId) ?? null;
-}
+import { getJobStatus } from "@/lib/jobs/job-store";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
