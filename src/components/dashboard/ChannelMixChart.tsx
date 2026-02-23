@@ -35,9 +35,9 @@ export function ChannelMixChart({ data }: ChannelMixChartProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.25, duration: 0.4 }}
-            className="h-[220px] w-full"
+            className="h-[220px] min-h-[160px] w-full"
           >
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minHeight={160}>
               <PieChart>
                 <Pie
                   data={chartData}

@@ -8,6 +8,8 @@ import { NextResponse } from "next/server";
 import { runCampaignImageWorkflow } from "@/langgraph/campaign-image-graph";
 import type { CampaignCreativeInput } from "@/types/platform";
 
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();

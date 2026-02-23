@@ -32,13 +32,24 @@ export default function CampaignStudioPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(form),
         });
-        const data = await res.json();
+        let data: { imageUrl?: string; prompt?: string; error?: string };
+        try {
+          data = await res.json();
+        } catch {
+          setError(
+            res.status === 504
+              ? "Image generation timed out. Try again or use a shorter prompt."
+              : "Generation failed (invalid response). Try again."
+          );
+          setLoading(false);
+          return;
+        }
         if (!res.ok) {
           setError(data.error ?? "Generation failed");
           setLoading(false);
           return;
         }
-        setGeneratedImages((prev) => [{ url: data.imageUrl, prompt: data.prompt }, ...prev.slice(0, 9)]);
+        setGeneratedImages((prev) => [{ url: data.imageUrl!, prompt: data.prompt ?? "" }, ...prev.slice(0, 9)]);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Request failed");
       } finally {

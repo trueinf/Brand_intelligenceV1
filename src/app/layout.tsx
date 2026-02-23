@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Oswald, Roboto, Playfair_Display, Lora } from "next/font/google";
+import { UnhandledRejectionHandler } from "@/components/UnhandledRejectionHandler";
 import "./globals.css";
 
 const inter = Inter({
@@ -48,6 +49,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.variable} ${brandKitFontVariables} font-sans antialiased`}>
+        <UnhandledRejectionHandler />
         {children}
       </body>
     </html>

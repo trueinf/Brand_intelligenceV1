@@ -143,9 +143,11 @@ function DashboardContent() {
         json = await res.json();
       } catch {
         setCampaignError(
-          res.ok
-            ? "Campaign generation failed"
-            : `Server error (${res.status}). Response was not JSON. Check server logs.`
+          res.status === 504
+            ? "Request timed out. Campaign generation can take over a minute—try again."
+            : res.ok
+              ? "Campaign generation failed"
+              : `Server error (${res.status}). Response was not JSON. Check server logs.`
         );
         setCampaignLoading(false);
         clearInterval(stepInterval);
