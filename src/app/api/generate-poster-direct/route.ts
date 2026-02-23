@@ -61,13 +61,16 @@ export async function POST(request: Request) {
           }
         : undefined;
 
-    // Create default gradient background and store to get a URL
+    // Create default gradient background and store to get a URL (or data URL on Netlify)
     const backgroundBuffer = await createDefaultPosterBackground(1080, 1350);
     const backgroundPath = await storeAsset("image", backgroundBuffer, {
       prefix: "poster-bg",
       extension: "png",
     });
-    const imageUrl = backgroundPath.startsWith("http") ? backgroundPath : `${baseUrl}${backgroundPath}`;
+    const imageUrl =
+      backgroundPath.startsWith("data:") || backgroundPath.startsWith("http")
+        ? backgroundPath
+        : `${baseUrl}${backgroundPath}`;
 
     // Call existing generate-poster logic via internal fetch (same origin)
     const res = await fetch(`${baseUrl}/api/generate-poster`, {

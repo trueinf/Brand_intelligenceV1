@@ -76,7 +76,7 @@ export function CampaignOutputPanel({ output, brandName }: CampaignOutputPanelPr
             />
           </div>
 
-          {videoUrl && (
+          {videoUrl ? (
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-2">Ad video</p>
               <div className="rounded-lg overflow-hidden border border-border/60 bg-black/90">
@@ -95,6 +95,12 @@ export function CampaignOutputPanel({ output, brandName }: CampaignOutputPanelPr
               >
                 Open in new tab
               </a>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-border/60 bg-muted/40 p-3">
+              <p className="text-xs text-muted-foreground">
+                Ad video was not generated. Set <strong>INVIDEO_API_KEY</strong> in your environment (Netlify or .env) and redeploy to enable campaign ad videos. You can also use &quot;Generate campaign video (10–20s)&quot; from a campaign workspace for video.
+              </p>
             </div>
           )}
         </CardContent>

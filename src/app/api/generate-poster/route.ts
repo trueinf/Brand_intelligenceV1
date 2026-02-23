@@ -29,7 +29,7 @@ import type { VisualHierarchyInput } from "@/lib/visual-hierarchy-engine";
 
 function toAbsoluteUrl(pathOrUrl: string, baseUrl: string): string {
   const s = pathOrUrl.trim();
-  if (s.startsWith("http://") || s.startsWith("https://")) return s;
+  if (s.startsWith("data:") || s.startsWith("http://") || s.startsWith("https://")) return s;
   const base = baseUrl.replace(/\/$/, "");
   return s.startsWith("/") ? `${base}${s}` : `${base}/${s}`;
 }

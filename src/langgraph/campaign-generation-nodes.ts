@@ -6,6 +6,10 @@ import { getOpenAIClient } from "@/lib/openai";
 import { generateCampaignImage } from "@/lib/ai/generateCampaignImage";
 import { storeAsset } from "@/lib/storage/blob";
 import { generateVideo as invideoGenerateVideo } from "@/lib/invideo";
+import {
+  generateVideoFromPrompt,
+  buildRunwayPromptFromScript,
+} from "@/lib/runway";
 import { getBrandKit } from "@/lib/brand-kit/load-brand-kit";
 import type { InVideoScript } from "@/types";
 import type {
@@ -291,15 +295,25 @@ export async function adVideoGenerationNode(
     return { error: state.error ?? "Video scene plan missing" };
   }
 
-  const script: InVideoScript = {
-    title: prompts.videoScenePlan.title,
-    scenes: prompts.videoScenePlan.scenes.map((s) => ({
-      text: s.text,
-      visual_hint: s.visualHint,
-    })),
-  };
+  const hasRunway = !!process.env.RUNWAY_API_KEY?.trim();
+  const hasInVideo = !!process.env.INVIDEO_API_KEY?.trim();
+  if (!hasRunway && !hasInVideo) {
+    return { videoUrl: null, error: null };
+  }
+
+  const title = prompts.videoScenePlan.title;
+  const scenes = prompts.videoScenePlan.scenes.map((s) => ({
+    text: s.text,
+    visual_hint: s.visualHint,
+  }));
 
   try {
+    if (hasRunway) {
+      const promptText = buildRunwayPromptFromScript(title, scenes);
+      const videoUrl = await generateVideoFromPrompt(promptText);
+      return { videoUrl, error: null };
+    }
+    const script: InVideoScript = { title, scenes };
     const videoUrl = await invideoGenerateVideo(script);
     return { videoUrl, error: null };
   } catch (e) {
