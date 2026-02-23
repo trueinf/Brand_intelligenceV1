@@ -2,7 +2,7 @@
  * Brand Kit service: DB lookup by brand name, fallback to default kits.
  */
 
-import { prisma } from "@/lib/db/prisma";
+import { getPrisma } from "@/lib/db/prisma";
 import type { BrandKit } from "./brand-kit.types";
 import { getDefaultBrandKit } from "./default-kits";
 
@@ -43,7 +43,7 @@ export async function getBrandKit(brandName: string): Promise<BrandKit> {
   if (!name) return getFallbackKit("Brand");
 
   try {
-    const row = await prisma.brandKit.findUnique({
+    const row = await getPrisma().brandKit.findUnique({
       where: { brandName: name },
     });
     if (row) return rowToBrandKit(row);
