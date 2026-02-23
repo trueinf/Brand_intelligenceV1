@@ -23,7 +23,7 @@ import {
   getStrategyVideoDuration,
 } from "../../remotion/StrategyVideo";
 import type { AnalyzeBrandResponse, Campaign } from "@/types";
-import type { VideoScript } from "@/types/video";
+import { type VideoScript, isVideoSceneArray } from "@/types/video";
 
 const REMOTION_FPS = 30;
 const REMOTION_WIDTH = 1920;
@@ -126,7 +126,7 @@ export default function Home() {
         setVideoLoading(false);
         return;
       }
-      if (data.title && Array.isArray(data.scenes)) {
+      if (data.title && isVideoSceneArray(data.scenes)) {
         setVideoScript({ title: data.title, scenes: data.scenes });
         if (data.audioUrl) {
           setAudioUrl(data.audioUrl);

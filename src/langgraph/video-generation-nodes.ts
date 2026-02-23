@@ -28,7 +28,8 @@ export async function voiceoverNode(
   if (!script?.scenes?.length) return { error: state.error ?? "Video script missing" };
   try {
     const narration = script.scenes.map((s) => s.text).join(" ");
-    const audioUrl = await createVoiceover(narration);
+    const voiceover = await createVoiceover(narration);
+    const audioUrl = "url" in voiceover ? voiceover.url : `data:audio/mpeg;base64,${voiceover.base64}`;
     return { audioUrl, error: null };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Voiceover generation failed";

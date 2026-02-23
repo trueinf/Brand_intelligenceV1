@@ -21,7 +21,7 @@ import { ChartSkeleton } from "@/components/skeletons/ChartSkeleton";
 import { Button } from "@/components/ui/button";
 import { Search, RotateCcw } from "lucide-react";
 import type { VideoStep as VideoStepType } from "@/types/dashboard";
-import type { VideoScript } from "@/types/video";
+import { type VideoScript, isVideoSceneArray } from "@/types/video";
 import type { CampaignOutput } from "@/types/campaign";
 import type { CampaignStepIndex } from "@/components/dashboard/StrategyPanel";
 import { getMockDashboardData } from "@/lib/data/mock-dashboard-data";
@@ -100,7 +100,7 @@ function DashboardContent() {
         return;
       }
       tick(3);
-      if (json.title && Array.isArray(json.scenes)) {
+      if (json.title && isVideoSceneArray(json.scenes)) {
         setVideoScript({ title: json.title, scenes: json.scenes });
         if (json.audioUrl) {
           setAudioUrl(json.audioUrl);
