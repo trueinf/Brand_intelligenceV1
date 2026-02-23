@@ -121,68 +121,88 @@ function DashboardContent() {
     setCampaignLoading(true);
     setCampaignError(null);
     setCampaignOutput(null);
-    setCampaignStep(0);
-    const stepInterval = setInterval(() => {
-      setCampaignStep((s) => (s < 2 ? ((s + 1) as CampaignStepIndex) : s));
-    }, 8000);
+    setCampaignStep(1);
+    const input = {
+      brandName: dashboardData.brandName,
+      brandOverview: apiResult?.brand_overview
+        ? { name: apiResult.brand_overview.name, domain: apiResult.brand_overview.domain, summary: apiResult.brand_overview.summary }
+        : { name: dashboardData.brandName, domain: "", summary: "" },
+      keywordIntelligence: {
+        coreKeywords: dashboardData.keywordClusters?.flatMap((c) => c.keywords).slice(0, 15),
+        intentClusters: dashboardData.keywordClusters?.map((c) => ({ intent: c.label, keywords: c.keywords })),
+      },
+      strategyInsights: {
+        strategic_summary: dashboardData.messagingStrategy,
+        market_position: dashboardData.brandDNA.marketPosition,
+        growth_score: dashboardData.strengthScore.score,
+        channel_strategy_summary: dashboardData.strategyPanel.recommendedActions?.[0] && typeof dashboardData.strategyPanel.recommendedActions[0] === "object"
+          ? (dashboardData.strategyPanel.recommendedActions[0] as { text?: string }).text
+          : undefined,
+      },
+      campaignsSummary: dashboardData.campaignThemes?.map((t) => `${t.campaignType}: ${t.goal}`).join("; "),
+    };
     try {
-      const input = {
-        brandName: dashboardData.brandName,
-        brandOverview: apiResult?.brand_overview
-          ? { name: apiResult.brand_overview.name, domain: apiResult.brand_overview.domain, summary: apiResult.brand_overview.summary }
-          : { name: dashboardData.brandName, domain: "", summary: "" },
-        keywordIntelligence: {
-          coreKeywords: dashboardData.keywordClusters?.flatMap((c) => c.keywords).slice(0, 15),
-          intentClusters: dashboardData.keywordClusters?.map((c) => ({ intent: c.label, keywords: c.keywords })),
-        },
-        strategyInsights: {
-          strategic_summary: dashboardData.messagingStrategy,
-          market_position: dashboardData.brandDNA.marketPosition,
-          growth_score: dashboardData.strengthScore.score,
-          channel_strategy_summary: dashboardData.strategyPanel.recommendedActions?.[0] && typeof dashboardData.strategyPanel.recommendedActions[0] === "object"
-            ? (dashboardData.strategyPanel.recommendedActions[0] as { text?: string }).text
-            : undefined,
-        },
-        campaignsSummary: dashboardData.campaignThemes?.map((t) => `${t.campaignType}: ${t.goal}`).join("; "),
-      };
       const res = await fetch("/api/generate-campaign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
-      let json: { error?: string } & CampaignOutput;
-      try {
-        json = await res.json();
-      } catch {
-        setCampaignError(
-          res.status === 504
-            ? "Request timed out. Campaign generation can take over a minute—try again."
-            : res.ok
-              ? "Campaign generation failed"
-              : `Server error (${res.status}). Response was not JSON. Check server logs.`
-        );
-        setCampaignLoading(false);
-        clearInterval(stepInterval);
-        return;
-      }
-      clearInterval(stepInterval);
-      setCampaignStep(2);
+      const postJson = (await res.json().catch(() => ({}))) as { jobId?: string; error?: string };
       if (!res.ok) {
-        const message =
-          res.status === 504
-            ? "Request timed out. Campaign generation can take over a minute—try again."
-            : res.status === 503
-              ? (json.error ?? "Campaign generation is not available. Use Campaign Studio to generate creatives.")
-              : json.error ?? "Campaign generation failed";
-        setCampaignError(message);
+        setCampaignError(postJson.error ?? "Failed to start campaign generation");
         setCampaignLoading(false);
         return;
       }
-      setCampaignOutput(json as CampaignOutput);
+      const jobId = postJson.jobId;
+      if (!jobId) {
+        setCampaignError("No job ID returned");
+        setCampaignLoading(false);
+        return;
+      }
+      const pollInterval = 2000;
+      const poll = async () => {
+        try {
+          const statusRes = await fetch(`/api/campaign-status?jobId=${encodeURIComponent(jobId)}`);
+          const statusJson = (await statusRes.json().catch(() => ({}))) as {
+            status?: string;
+            output?: CampaignOutput;
+            error?: string;
+          };
+          if (statusRes.status === 404) {
+            setCampaignError("Job not found or expired");
+            setCampaignLoading(false);
+            return true;
+          }
+          if (!statusRes.ok) {
+            setCampaignError((statusJson as { error?: string }).error ?? "Failed to get status");
+            setCampaignLoading(false);
+            return true;
+          }
+          const status = statusJson.status;
+          if (status === "completed" && statusJson.output) {
+            setCampaignStep(2);
+            setCampaignOutput(statusJson.output);
+            setCampaignLoading(false);
+            return true;
+          }
+          if (status === "failed") {
+            setCampaignError(statusJson.error ?? "Campaign generation failed");
+            setCampaignLoading(false);
+            return true;
+          }
+          return false;
+        } catch {
+          return false;
+        }
+      };
+      let done = await poll();
+      if (done) return;
+      const intervalId = setInterval(async () => {
+        done = await poll();
+        if (done) clearInterval(intervalId);
+      }, pollInterval);
     } catch (e) {
-      clearInterval(stepInterval);
       setCampaignError(e instanceof Error ? e.message : "Campaign generation failed");
-    } finally {
       setCampaignLoading(false);
     }
   }, [dashboardData, apiResult]);

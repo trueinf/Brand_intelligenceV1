@@ -1,54 +1,82 @@
 /**
  * POST /api/generate-campaign
- * Proxies to Render backend (NEXT_PUBLIC_CAMPAIGN_API_URL). No graph execution on Netlify.
+ * Returns immediately with { jobId }. Runs LangGraph in background via worker.
+ * No runCampaignGenerationGraph in this route — avoids Netlify 504.
  */
 
 import { NextResponse } from "next/server";
+import { createCampaignJob } from "@/lib/campaign-job-store";
+import { processCampaignJob } from "@/lib/workers/campaign-worker";
+import type { CampaignGenerationInput } from "@/langgraph/campaign-generation-state";
 
 export const maxDuration = 60;
 
+function parseBody(body: unknown): CampaignGenerationInput | null {
+  if (!body || typeof body !== "object") return null;
+  const b = body as Record<string, unknown>;
+  const brandName = String(b?.brandName ?? "").trim();
+  if (!brandName) return null;
+  return {
+    brandName,
+    campaignId: b.campaignId != null ? String(b.campaignId) : undefined,
+    brandOverview:
+      b.brandOverview && typeof b.brandOverview === "object"
+        ? {
+            name: String((b.brandOverview as Record<string, unknown>).name ?? ""),
+            domain: String((b.brandOverview as Record<string, unknown>).domain ?? ""),
+            summary:
+              (b.brandOverview as Record<string, unknown>).summary != null
+                ? String((b.brandOverview as Record<string, unknown>).summary)
+                : undefined,
+          }
+        : undefined,
+    keywordIntelligence:
+      b.keywordIntelligence && typeof b.keywordIntelligence === "object"
+        ? (b.keywordIntelligence as CampaignGenerationInput["keywordIntelligence"])
+        : undefined,
+    strategyInsights:
+      b.strategyInsights && typeof b.strategyInsights === "object"
+        ? (b.strategyInsights as CampaignGenerationInput["strategyInsights"])
+        : undefined,
+    campaignsSummary: b.campaignsSummary != null ? String(b.campaignsSummary) : undefined,
+  };
+}
+
 export async function POST(request: Request) {
-  const apiUrl = process.env.NEXT_PUBLIC_CAMPAIGN_API_URL?.replace(/\/$/, "");
-  if (!apiUrl) {
-    return NextResponse.json(
-      {
-        error:
-          "Campaign API not configured. Set NEXT_PUBLIC_CAMPAIGN_API_URL to your Render backend URL.",
-      },
-      { status: 503 }
-    );
-  }
-
-  let body: unknown;
   try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
 
-  try {
-    const response = await fetch(`${apiUrl}/generate-campaign`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
+    const input = parseBody(body);
+    if (!input) {
       return NextResponse.json(
-        { error: (data as { error?: string }).error ?? "Campaign generation failed" },
-        { status: response.status }
+        { error: "Missing brandName in request body" },
+        { status: 400 }
       );
     }
 
-    return NextResponse.json(data);
+    if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+      return NextResponse.json(
+        {
+          error:
+            "Redis not configured. Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.",
+        },
+        { status: 503 }
+      );
+    }
+
+    const jobId = await createCampaignJob(input);
+
+    processCampaignJob(jobId).catch(() => {});
+
+    return NextResponse.json({ jobId });
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Campaign generation failed";
-    console.error("[generate-campaign] proxy error", e);
-    return NextResponse.json(
-      { error: message },
-      { status: 502 }
-    );
+    const message = e instanceof Error ? e.message : "Failed to start campaign generation";
+    console.error("[generate-campaign]", e);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
