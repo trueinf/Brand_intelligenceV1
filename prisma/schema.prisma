@@ -1,0 +1,86 @@
+// Brand Intelligence Platform — Prisma schema
+// Run: npx prisma generate && npx prisma migrate dev
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Brand {
+  id       String   @id @default(cuid())
+  name     String
+  domain   String
+  industry String?
+  analyses Analysis[]
+  campaigns Campaign[]
+  generatedCreatives GeneratedCreative[]
+  generatedVideos    GeneratedVideo[]
+  createdAt DateTime @default(now())
+}
+
+model BrandKit {
+  id             String   @id @default(cuid())
+  brandName      String   @unique
+  logoUrl        String
+  primaryColor   String
+  secondaryColor  String
+  fontHeadline   String
+  fontBody       String
+  tone           String
+  accentColor    String?
+  buttonStyle    String?
+  visualStyle    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Analysis {
+  id                 String   @id @default(cuid())
+  brandId            String
+  brand              Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  brandIntelligence  Json?
+  keywordIntelligence Json?
+  strategyInsights  Json?
+  createdAt          DateTime @default(now())
+
+  @@index([brandId])
+}
+
+model Campaign {
+  id        String   @id @default(cuid())
+  brandId   String
+  brand     Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  type      String
+  channel   String
+  messaging Json?
+  createdAt DateTime @default(now())
+
+  @@index([brandId])
+}
+
+model GeneratedCreative {
+  id           String   @id @default(cuid())
+  brandId      String
+  brand        Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  campaignGoal String
+  imageUrl     String
+  inputParams  Json?
+  createdAt    DateTime @default(now())
+
+  @@index([brandId])
+}
+
+model GeneratedVideo {
+  id        String   @id @default(cuid())
+  brandId   String
+  brand     Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  title     String
+  videoUrl  String
+  script    Json?
+  createdAt DateTime @default(now())
+
+  @@index([brandId])
+}
