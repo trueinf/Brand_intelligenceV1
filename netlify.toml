@@ -1,0 +1,10 @@
+# Netlify config for Brand Campaign Intelligence
+# https://docs.netlify.com/configure-builds/file-based-configuration/
+
+[build]
+  command = "npm run build"
+
+# Use fast analysis path (mock data + 2 LLM calls) to stay under serverless timeout.
+# Full workflow uses Clearbit, SerpAPI, Google Trends and can exceed 26–60s.
+[build.environment]
+  FAST_ANALYSIS = "true"
