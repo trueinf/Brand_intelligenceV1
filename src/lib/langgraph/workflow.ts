@@ -71,7 +71,11 @@ export async function executeWorkflowFast(
 export async function executeWorkflow(
   brandInput: string
 ): Promise<{ success: true; data: AnalyzeBrandResponse } | { success: false; error: string }> {
-  if (process.env.FAST_ANALYSIS === "true") {
+  const useFast =
+    process.env.FAST_ANALYSIS === "true" ||
+    typeof process.env.NETLIFY_SITE_NAME !== "undefined" ||
+    (typeof process.env.URL === "string" && process.env.URL.includes("netlify.app"));
+  if (useFast) {
     return executeWorkflowFast(brandInput);
   }
   const state = await runBrandCampaignWorkflow(brandInput);

@@ -4,7 +4,13 @@
 [build]
   command = "npm run build"
 
-# Use fast analysis path (mock data + 2 LLM calls) to stay under serverless timeout.
-# Full workflow uses Clearbit, SerpAPI, Google Trends and can exceed 26–60s.
+# Build-time env
 [build.environment]
+  FAST_ANALYSIS = "true"
+
+# Runtime env for serverless (required so analyze-brand sees FAST_ANALYSIS)
+[context.production.environment]
+  FAST_ANALYSIS = "true"
+
+[context.deploy-preview.environment]
   FAST_ANALYSIS = "true"
