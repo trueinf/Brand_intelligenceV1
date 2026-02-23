@@ -156,7 +156,11 @@ function DashboardContent() {
       clearInterval(stepInterval);
       setCampaignStep(2);
       if (!res.ok) {
-        setCampaignError(json.error ?? "Campaign generation failed");
+        setCampaignError(
+          res.status === 504
+            ? "Request timed out. Campaign generation can take over a minute—try again."
+            : json.error ?? "Campaign generation failed"
+        );
         setCampaignLoading(false);
         return;
       }

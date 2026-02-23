@@ -46,7 +46,7 @@ export function GrowthChart({ data, yoYPercent }: GrowthChartProps) {
             transition={{ delay: 0.2, duration: 0.4 }}
             className="h-[160px] min-h-[120px] w-full"
           >
-            <ResponsiveContainer width="100%" height="100%" minHeight={120}>
+            <ResponsiveContainer width="100%" height={160}>
               <LineChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" />
                 <XAxis

@@ -25,7 +25,7 @@ export function DemandVsBrandChart({ data }: DemandVsBrandChartProps) {
         </CardHeader>
         <CardContent>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="h-[220px] min-h-[160px] w-full">
-            <ResponsiveContainer width="100%" height="100%" minHeight={160}>
+            <ResponsiveContainer width="100%" height={220}>
               <BarChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" vertical={false} />
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
