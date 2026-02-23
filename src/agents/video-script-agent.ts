@@ -1,12 +1,12 @@
 /**
- * Video script agent: OpenAI generates InVideo-ready script from dashboard intelligence.
+ * Video script agent: generates presentation script from dashboard intelligence.
  * Output: { title, scenes: [{ text, visual_hint }] }
  */
 
 import type { AnalyzeBrandResponse, InVideoScript } from "@/types";
 import { callClaudeJson } from "@/lib/claude/client";
 
-const SYSTEM_PROMPT = `You are a senior video director creating a business presentation script for InVideo AI.
+const SYSTEM_PROMPT = `You are a senior video director creating a business presentation script.
 
 Output ONLY valid JSON. No markdown, no code fences.
 
@@ -30,7 +30,7 @@ Generate 5–7 scenes for a business presentation style video:
 6. Strategic recommendation
 (Optional 7th: closing CTA)
 
-Keep text concise and professional. Visual hints should be short (2–5 words) for InVideo to match assets.`;
+Keep text concise and professional. Visual hints should be short (2–5 words) for video assets.`;
 
 export function buildVideoScriptUserPrompt(dashboardData: AnalyzeBrandResponse): string {
   return `Generate the video script JSON for this brand intelligence dashboard:

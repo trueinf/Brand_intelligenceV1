@@ -5,13 +5,11 @@
 import { getOpenAIClient } from "@/lib/openai";
 import { generateCampaignImage } from "@/lib/ai/generateCampaignImage";
 import { storeAsset } from "@/lib/storage/blob";
-import { generateVideo as invideoGenerateVideo } from "@/lib/invideo";
 import {
   generateVideoFromPrompt,
   buildRunwayPromptFromScript,
 } from "@/lib/runway";
 import { getBrandKit } from "@/lib/brand-kit/load-brand-kit";
-import type { InVideoScript } from "@/types";
 import type {
   CampaignBrief,
   CampaignCreativePrompts,
@@ -295,9 +293,7 @@ export async function adVideoGenerationNode(
     return { error: state.error ?? "Video scene plan missing" };
   }
 
-  const hasRunway = !!process.env.RUNWAY_API_KEY?.trim();
-  const hasInVideo = !!process.env.INVIDEO_API_KEY?.trim();
-  if (!hasRunway && !hasInVideo) {
+  if (!process.env.RUNWAY_API_KEY?.trim()) {
     return { videoUrl: null, error: null };
   }
 
@@ -308,13 +304,8 @@ export async function adVideoGenerationNode(
   }));
 
   try {
-    if (hasRunway) {
-      const promptText = buildRunwayPromptFromScript(title, scenes);
-      const videoUrl = await generateVideoFromPrompt(promptText);
-      return { videoUrl, error: null };
-    }
-    const script: InVideoScript = { title, scenes };
-    const videoUrl = await invideoGenerateVideo(script);
+    const promptText = buildRunwayPromptFromScript(title, scenes);
+    const videoUrl = await generateVideoFromPrompt(promptText);
     return { videoUrl, error: null };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Ad video generation failed";

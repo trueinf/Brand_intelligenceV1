@@ -1,5 +1,5 @@
 /**
- * Video pipeline types for script + voiceover (Remotion / InVideo compatible).
+ * Video pipeline types for script + voiceover (Remotion compatible).
  */
 
 export interface VideoScene {

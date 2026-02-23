@@ -1,6 +1,6 @@
 /**
  * Generate a 60–90 second executive strategy video script from dashboard data.
- * Uses OpenAI gpt-4o. Output is modular for Remotion or InVideo.
+ * Uses OpenAI gpt-4o. Output is modular for Remotion.
  */
 
 import { getOpenAIClient } from "@/lib/openai";
@@ -20,7 +20,7 @@ Strict schema:
     {
       "heading": "string (scene title, 2–5 words)",
       "text": "string (narration for this scene, under 40 words)",
-      "visual_hint": "string (brief visual direction for Remotion/InVideo, 2–8 words)"
+      "visual_hint": "string (brief visual direction for Remotion, 2–8 words)"
     }
   ]
 }

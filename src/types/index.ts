@@ -264,7 +264,7 @@ export interface GenerateVideoResponse {
   scene_urls?: string[];
 }
 
-// ---------- InVideo script (for InVideo API) ----------
+// ---------- Video script (presentation / strategy video) ----------
 
 export interface InVideoScriptScene {
   text: string;

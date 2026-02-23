@@ -99,7 +99,7 @@ export function CampaignOutputPanel({ output, brandName }: CampaignOutputPanelPr
           ) : (
             <div className="rounded-lg border border-border/60 bg-muted/40 p-3">
               <p className="text-xs text-muted-foreground">
-                Ad video was not generated. Set <strong>INVIDEO_API_KEY</strong> in your environment (Netlify or .env) and redeploy to enable campaign ad videos. You can also use &quot;Generate campaign video (10–20s)&quot; from a campaign workspace for video.
+                Ad video was not generated. Set <strong>RUNWAY_API_KEY</strong> in the environment where the campaign worker runs (e.g. Render or .env) and redeploy. You can also use &quot;Generate campaign video (10–20s)&quot; from a campaign workspace for video.
               </p>
             </div>
           )}

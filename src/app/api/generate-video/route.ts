@@ -7,7 +7,7 @@ import type { AnalyzeBrandResponse } from "@/types";
  * POST /api/generate-video
  * Body: { dashboardData: AnalyzeBrandResponse }
  * Flow: 1) createVideoScript 2) combine scene text into narration 3) createVoiceover
- * Returns: { title, scenes, audioUrl?, audioBase64? } for use by Remotion or InVideo.
+ * Returns: { title, scenes, audioUrl?, audioBase64? } for use by Remotion.
  */
 export const maxDuration = 60;
 
