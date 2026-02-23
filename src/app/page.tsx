@@ -67,7 +67,17 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ brand: brandInput }),
       });
-      const data = await res.json();
+      let data: AnalyzeBrandResponse & { error?: string };
+      try {
+        data = await res.json();
+      } catch {
+        setError(
+          res.status === 504
+            ? "Request timed out. The analysis takes a while—try again or use a shorter brand name."
+            : "Analysis failed (invalid response). Try again."
+        );
+        return;
+      }
       if (!res.ok) {
         setError(data.error ?? "Analysis failed");
         return;

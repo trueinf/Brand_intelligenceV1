@@ -43,7 +43,20 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ brand: query }),
       });
-      const json = await res.json();
+      let json: AnalyzeBrandResponse & { error?: string };
+      try {
+        json = await res.json();
+      } catch {
+        setError(
+          res.status === 504
+            ? "Request timed out. Brand analysis can take a minute—try again."
+            : "Analysis failed (invalid response). Try again."
+        );
+        setStatus("error");
+        setApiResult(null);
+        setDataState(getMockDashboardData(query));
+        return;
+      }
       if (!res.ok) {
         setError(json.error ?? "Analysis failed");
         setStatus("error");

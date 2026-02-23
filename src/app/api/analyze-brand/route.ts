@@ -6,6 +6,8 @@ import { executeWorkflow } from "@/lib/langgraph/workflow";
  * Body: { brand: string }
  * Returns: { brand_overview, campaigns, insights } or { error: string }
  */
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
