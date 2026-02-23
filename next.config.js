@@ -4,8 +4,8 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '2mb',
     },
+    serverComponentsExternalPackages: ['@remotion/renderer'],
   },
-  serverExternalPackages: ['@remotion/renderer'],
 };
 
 module.exports = nextConfig;
