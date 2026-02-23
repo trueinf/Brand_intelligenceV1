@@ -114,10 +114,29 @@ export interface VideoScriptScene {
 
 export type JobStatus = "pending" | "running" | "completed" | "failed";
 
+export interface CampaignJobImage {
+  url: string;
+  prompt?: string;
+}
+
+export interface CampaignJobResult {
+  images?: CampaignJobImage[];
+  videoUrl?: string;
+  imageUrl?: string;
+}
+
+export type CampaignJobType = "image" | "video";
+
 export interface JobStatusResponse {
   jobId: string;
   status: JobStatus;
-  result?: { videoUrl?: string; imageUrl?: string };
-  error?: string;
+  jobType?: CampaignJobType;
+  currentStep?: string;
   progress?: number;
+  result?: CampaignJobResult;
+  error?: string;
+  createdAt?: number;
+  campaignName?: string;
+  brandName?: string;
+  workspaceId?: string;
 }

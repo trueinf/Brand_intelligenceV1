@@ -1,10 +1,12 @@
 /**
  * Build master creative prompt for campaign image generation.
  * Combines brand design rules + AI-generated prompt.
+ * When IMAGE_AGENT=gemini uses Gemini; otherwise OpenAI.
  */
 
 import type { CampaignCreativeInput } from "@/types/platform";
 import { generateCampaignCreativePrompt } from "@/lib/ai/openai";
+import { generateImageScriptWithRetry } from "@/lib/agents/gemini-image-script";
 
 export interface BrandDesignRules {
   voice?: string;
@@ -34,12 +36,19 @@ function rulesToText(rules: BrandDesignRules): string {
   return parts.join(" ") || "Professional, on-brand visuals.";
 }
 
-/** Build final image prompt using AI. */
+/** Build final image prompt using AI. IMAGE_AGENT=gemini uses Gemini; else OpenAI. */
 export async function buildCreativePrompt(
   input: CampaignCreativeInput,
   brandId?: string
 ): Promise<string> {
   const rules = loadBrandDesignRules(brandId);
   const rulesText = rulesToText(rules);
+
+  if (process.env.IMAGE_AGENT === "gemini") {
+    const result = await generateImageScriptWithRetry(input, rulesText);
+    if ("error" in result) throw new Error(result.error);
+    return result.prompt;
+  }
+
   return generateCampaignCreativePrompt(input, rulesText);
 }

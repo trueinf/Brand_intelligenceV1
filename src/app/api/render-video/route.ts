@@ -27,6 +27,12 @@ function toAbsoluteUrl(pathOrUrl: string, origin: string): string {
 }
 
 export async function POST(request: Request) {
+  if (process.env.NETLIFY || process.env.DISABLE_REMOTION === "true") {
+    return NextResponse.json(
+      { error: "Use campaign video job instead" },
+      { status: 503 }
+    );
+  }
   try {
     const body = await request.json();
     const title = body?.title as string | undefined;

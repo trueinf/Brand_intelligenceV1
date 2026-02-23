@@ -1,7 +1,10 @@
 /**
+ * @deprecated Use POST /api/start-campaign and GET /api/job-status?jobId= for async image generation.
+ * This route is kept only for local/testing; production should use the job-based flow to avoid 504 timeouts.
+ *
  * POST /api/generate-campaign-image
- * Body: CampaignCreativeInput (brandName, campaignGoal, channel, audience?, tone?, keyMessage?, visualStyle?, brandId?)
- * Flow: load brand rules → build master prompt → OpenAI image → store asset → return image URL.
+ * Body: CampaignCreativeInput
+ * Returns: { imageUrl, prompt } — direct call, may timeout on Netlify.
  */
 
 import { NextResponse } from "next/server";
