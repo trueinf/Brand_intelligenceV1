@@ -58,7 +58,11 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       if (!res.ok) {
-        setError(json.error ?? "Analysis failed");
+        setError(
+          res.status === 504
+            ? "Request timed out. Brand analysis can take a minute—try again."
+            : json.error ?? "Analysis failed"
+        );
         setStatus("error");
         setApiResult(null);
         setDataState(getMockDashboardData(query));

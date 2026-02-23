@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { executeWorkflow } from "@/lib/langgraph/workflow";
+import { executeWorkflow, executeWorkflowFast } from "@/lib/langgraph/workflow";
 
 /**
  * POST /api/analyze-brand
@@ -19,7 +19,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const outcome = await executeWorkflow(brand);
+    const useFast = process.env.FAST_ANALYSIS === "true";
+    const outcome = useFast ? await executeWorkflowFast(brand) : await executeWorkflow(brand);
     if (!outcome.success) {
       return NextResponse.json({ error: outcome.error }, { status: 422 });
     }

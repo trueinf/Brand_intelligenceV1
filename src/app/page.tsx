@@ -105,15 +105,36 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dashboardData: result }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setVideoError(data.error ?? "Video generation failed");
+      let data: { title?: string; scenes?: unknown[]; audioUrl?: string; audioBase64?: string; error?: string };
+      try {
+        data = await res.json();
+      } catch {
+        setVideoError(
+          res.status === 504
+            ? "Request timed out. Video generation can take a minute—try again."
+            : "Video generation failed (invalid response)."
+        );
         setVideoLoading(false);
         return;
       }
-      if (data.title && Array.isArray(data.scenes) && data.audioUrl) {
+      if (!res.ok) {
+        setVideoError(
+          res.status === 504
+            ? "Request timed out. Video generation can take a minute—try again."
+            : data.error ?? "Video generation failed"
+        );
+        setVideoLoading(false);
+        return;
+      }
+      if (data.title && Array.isArray(data.scenes)) {
         setVideoScript({ title: data.title, scenes: data.scenes });
-        setAudioUrl(data.audioUrl);
+        if (data.audioUrl) {
+          setAudioUrl(data.audioUrl);
+        } else if (data.audioBase64) {
+          const bytes = Uint8Array.from(atob(data.audioBase64), (c) => c.charCodeAt(0));
+          const blob = new Blob([bytes], { type: "audio/mpeg" });
+          setAudioUrl(URL.createObjectURL(blob));
+        }
       }
     } catch (e) {
       setVideoError(e instanceof Error ? e.message : "Request failed");

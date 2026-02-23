@@ -85,17 +85,29 @@ function DashboardContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dashboardData: payload }),
       });
-      const json = await res.json();
+      let json: { title?: string; scenes?: unknown[]; audioUrl?: string; audioBase64?: string; error?: string };
+      try {
+        json = await res.json();
+      } catch {
+        setVideoError(res.status === 504 ? "Request timed out. Try again." : "Video generation failed (invalid response).");
+        setVideoState("idle");
+        return;
+      }
       tick(2);
       if (!res.ok) {
-        setVideoError(json.error ?? "Video generation failed");
+        setVideoError(res.status === 504 ? "Request timed out. Try again." : json.error ?? "Video generation failed");
         setVideoState("idle");
         return;
       }
       tick(3);
-      if (json.title && Array.isArray(json.scenes) && json.audioUrl) {
+      if (json.title && Array.isArray(json.scenes)) {
         setVideoScript({ title: json.title, scenes: json.scenes });
-        setAudioUrl(json.audioUrl);
+        if (json.audioUrl) {
+          setAudioUrl(json.audioUrl);
+        } else if (json.audioBase64) {
+          const bytes = Uint8Array.from(atob(json.audioBase64), (c) => c.charCodeAt(0));
+          setAudioUrl(URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" })));
+        }
         setVideoSteps((prev) => prev.map((s) => ({ ...s, done: true, active: false })));
         setVideoState("ready");
       } else setVideoState("idle");
