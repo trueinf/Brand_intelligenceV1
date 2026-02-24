@@ -13,9 +13,14 @@ import { handleGenerateCampaign } from "./routes/campaign";
 const app = express();
 const PORT = process.env.PORT ?? 3001;
 
+const corsOrigin = process.env.CORS_ORIGIN?.trim();
+const corsOriginNormalized = corsOrigin
+  ? corsOrigin.replace(/\/+$/, "")
+  : true;
+
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN ?? true,
+    origin: corsOriginNormalized,
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type"],
   })
