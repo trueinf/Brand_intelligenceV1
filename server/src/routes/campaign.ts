@@ -58,6 +58,7 @@ export async function handleGenerateCampaign(req: Request, res: Response): Promi
       brief: result.brief!,
       adImages: result.adImages ?? [],
       videoUrl: result.videoUrl ?? null,
+      videoError: result.error ?? undefined,
     };
     res.status(200).json(output);
   } catch (e) {

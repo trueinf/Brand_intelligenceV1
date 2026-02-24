@@ -1,9 +1,11 @@
 /**
  * Render backend — runs campaign generation graph (no timeout limits).
  * Listen on PORT; CORS for frontend; JSON body limit 50mb.
+ * Serves generated images from public/ (creatives, videos) so the frontend can load them.
  */
 
 import "dotenv/config";
+import path from "path";
 import express from "express";
 import cors from "cors";
 import { handleGenerateCampaign } from "./routes/campaign";
@@ -19,6 +21,11 @@ app.use(
   })
 );
 app.use(express.json({ limit: "50mb" }));
+
+const publicDir = path.join(process.cwd(), "public");
+app.use("/creatives", express.static(path.join(publicDir, "creatives")));
+app.use("/videos", express.static(path.join(publicDir, "videos")));
+app.use("/audio", express.static(path.join(publicDir, "audio")));
 
 app.post("/generate-campaign", handleGenerateCampaign);
 

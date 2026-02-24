@@ -62,4 +62,6 @@ export interface CampaignOutput {
   brief: CampaignBrief;
   adImages: GeneratedAdImage[];
   videoUrl: string | null;
+  /** Set when ad video step failed (e.g. Runway API error). */
+  videoError?: string | null;
 }

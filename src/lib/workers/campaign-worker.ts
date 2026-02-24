@@ -28,6 +28,7 @@ export async function processCampaignJob(jobId: string): Promise<void> {
       brief: result.brief!,
       adImages: result.adImages ?? [],
       videoUrl: result.videoUrl ?? null,
+      videoError: result.error ?? undefined,
     };
 
     await updateCampaignJob(jobId, {

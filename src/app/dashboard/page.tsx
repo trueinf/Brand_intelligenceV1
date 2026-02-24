@@ -117,6 +117,10 @@ function DashboardContent() {
     }
   }, [apiResult, data]);
 
+  const campaignApiBase = typeof process.env.NEXT_PUBLIC_CAMPAIGN_API_URL === "string"
+    ? process.env.NEXT_PUBLIC_CAMPAIGN_API_URL.replace(/\/$/, "")
+    : null;
+
   const handleGenerateCampaign = useCallback(async () => {
     setCampaignLoading(true);
     setCampaignError(null);
@@ -142,6 +146,38 @@ function DashboardContent() {
       campaignsSummary: dashboardData.campaignThemes?.map((t) => `${t.campaignType}: ${t.goal}`).join("; "),
     };
     try {
+      if (campaignApiBase) {
+        const res = await fetch(`${campaignApiBase}/generate-campaign`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        });
+        const json = (await res.json().catch(() => ({}))) as CampaignOutput & { error?: string };
+        if (!res.ok) {
+          setCampaignError((json as { error?: string }).error ?? "Failed to generate campaign");
+          setCampaignLoading(false);
+          return;
+        }
+        if (json.brief) {
+          const adImages = (json.adImages ?? []).map((img: { type: string; url: string }) => ({
+            type: img.type,
+            url:
+              img.url.startsWith("http") || img.url.startsWith("data:")
+                ? img.url
+                : `${campaignApiBase}${img.url.startsWith("/") ? "" : "/"}${img.url}`,
+          }));
+          setCampaignStep(2);
+          setCampaignOutput({
+            brief: json.brief,
+            adImages,
+            videoUrl: json.videoUrl ?? null,
+            videoError: json.videoError ?? undefined,
+          });
+        }
+        setCampaignLoading(false);
+        return;
+      }
+
       const res = await fetch("/api/generate-campaign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -205,7 +241,7 @@ function DashboardContent() {
       setCampaignError(e instanceof Error ? e.message : "Campaign generation failed");
       setCampaignLoading(false);
     }
-  }, [dashboardData, apiResult]);
+  }, [dashboardData, apiResult, campaignApiBase]);
 
   const memoizedGrowthChart = useMemo(() => dashboardData.growthChart, [dashboardData.growthChart]);
   const memoizedChannelMix = useMemo(() => dashboardData.channelMix, [dashboardData.channelMix]);

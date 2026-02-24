@@ -18,7 +18,7 @@ const AD_TYPE_LABELS: Record<string, string> = {
 };
 
 export function CampaignOutputPanel({ output, brandName }: CampaignOutputPanelProps) {
-  const { brief, adImages, videoUrl } = output;
+  const { brief, adImages, videoUrl, videoError } = output;
 
   return (
     <motion.div
@@ -98,9 +98,15 @@ export function CampaignOutputPanel({ output, brandName }: CampaignOutputPanelPr
             </div>
           ) : (
             <div className="rounded-lg border border-border/60 bg-muted/40 p-3">
-              <p className="text-xs text-muted-foreground">
-                Ad video was not generated. Set <strong>RUNWAY_API_KEY</strong> in the environment where the campaign worker runs (e.g. Render or .env) and redeploy. You can also use &quot;Generate campaign video (10–20s)&quot; from a campaign workspace for video.
-              </p>
+              {videoError ? (
+                <p className="text-xs text-muted-foreground">
+                  Ad video failed: <span className="text-destructive">{videoError}</span>
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Ad video was not generated. Set <strong>RUNWAY_API_KEY</strong> in the environment where the campaign worker runs (e.g. Render or .env) and redeploy. You can also use &quot;Generate campaign video (10–20s)&quot; from a campaign workspace for video.
+                </p>
+              )}
             </div>
           )}
         </CardContent>
