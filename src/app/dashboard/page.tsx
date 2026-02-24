@@ -159,8 +159,8 @@ function DashboardContent() {
           return;
         }
         if (json.brief) {
-          const adImages = (json.adImages ?? []).map((img: { type: string; url: string }) => ({
-            type: img.type,
+          const adImages: CampaignOutput["adImages"] = (json.adImages ?? []).map((img: { type: string; url: string }) => ({
+            type: img.type as CampaignOutput["adImages"][0]["type"],
             url:
               img.url.startsWith("http") || img.url.startsWith("data:")
                 ? img.url
