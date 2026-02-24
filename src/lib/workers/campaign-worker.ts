@@ -18,7 +18,7 @@ import { stateToCampaignBrain, brainToBrief } from "@/lib/campaignBrain";
 import { generateVideoFromPrompt } from "@/lib/xai-video";
 import type { CampaignOutput } from "@/types/campaign";
 
-const IMAGE_JOB_TIMEOUT_MS = 4 * 60 * 1000; // 4 min for posters
+const IMAGE_JOB_TIMEOUT_MS = 10 * 60 * 1000; // 10 min for posters (3 images; OpenAI can be slow)
 const VIDEO_JOB_TIMEOUT_MS = 45 * 60 * 1000; // 45 min for Grok video (align with xai-video POLL_TIMEOUT)
 const BOTH_JOB_TIMEOUT_MS = Math.max(IMAGE_JOB_TIMEOUT_MS, VIDEO_JOB_TIMEOUT_MS);
 

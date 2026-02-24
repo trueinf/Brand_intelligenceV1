@@ -265,22 +265,25 @@ export async function adImageGenerationNode(
   };
 
   try {
-    const adImages: GeneratedAdImage[] = [];
-    for (const { type } of variants) {
-      const { platform, visualType } = VARIANT_TO_PLATFORM_AND_VISUAL[type];
-      const result = await generateCampaignImage({
-        creativeDirection,
-        platform,
-        visualType,
-        campaignId: state.input?.campaignId,
-      });
-      const buffer = Buffer.from(result.imageBase64, "base64");
-      const storedUrl = await storeAsset("image", buffer, {
-        prefix: `campaign-${type.replace("_", "-")}`,
-        extension: "png",
-      });
-      adImages.push({ type, url: storedUrl });
-    }
+    const campaignId = state.input?.campaignId;
+    const results = await Promise.all(
+      variants.map(async ({ type }) => {
+        const { platform, visualType } = VARIANT_TO_PLATFORM_AND_VISUAL[type];
+        const result = await generateCampaignImage({
+          creativeDirection,
+          platform,
+          visualType,
+          campaignId,
+        });
+        const buffer = Buffer.from(result.imageBase64, "base64");
+        const storedUrl = await storeAsset("image", buffer, {
+          prefix: `campaign-${type.replace("_", "-")}`,
+          extension: "png",
+        });
+        return { type, url: storedUrl };
+      })
+    );
+    const adImages: GeneratedAdImage[] = results;
     return { adImages, error: null };
   } catch (e) {
     if (state.jobId) {
