@@ -35,6 +35,7 @@ export async function processCampaignJob(jobId: string): Promise<void> {
       status: "completed",
       output,
     });
+    console.log("JOB COMPLETED", jobId);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Campaign generation failed";
     console.error("[campaign-worker]", jobId, e);

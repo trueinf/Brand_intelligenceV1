@@ -7,8 +7,8 @@ import { generateCampaignImage } from "@/lib/ai/generateCampaignImage";
 import { storeAsset } from "@/lib/storage/blob";
 import {
   generateVideoFromPrompt,
-  buildRunwayPromptFromScript,
-} from "@/lib/runway";
+  buildAdVideoPromptFromScript,
+} from "@/lib/xai-video";
 import { getBrandKit } from "@/lib/brand-kit/load-brand-kit";
 import type {
   CampaignBrief,
@@ -293,7 +293,7 @@ export async function adVideoGenerationNode(
     return { error: state.error ?? "Video scene plan missing" };
   }
 
-  if (!process.env.RUNWAY_API_KEY?.trim()) {
+  if (!process.env.XAI_API_KEY?.trim()) {
     return { videoUrl: null, error: null };
   }
 
@@ -304,7 +304,7 @@ export async function adVideoGenerationNode(
   }));
 
   try {
-    const promptText = buildRunwayPromptFromScript(title, scenes);
+    const promptText = buildAdVideoPromptFromScript(title, scenes);
     const videoUrl = await generateVideoFromPrompt(promptText);
     return { videoUrl, error: null };
   } catch (e) {

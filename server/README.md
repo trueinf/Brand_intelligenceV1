@@ -22,7 +22,7 @@ Set in Render dashboard or in a `.env` file at **project root** when running loc
 | `OPENAI_API_KEY` | Yes | Used by campaign strategist, creative prompts, ad image generation. |
 | `CORS_ORIGIN` | — | Allowed origin (e.g. `https://brandinteligence.netlify.app`). Omit or `true` to allow all. |
 | `LANGCHAIN_API_KEY` | — | Optional (LangSmith). |
-| Any keys used by graph nodes | — | e.g. RUNWAY_API_KEY for ad video; see `src/langgraph/campaign-generation-nodes.ts`. |
+| Any keys used by graph nodes | — | e.g. XAI_API_KEY for ad video (xAI Grok Imagine Video); see `src/langgraph/campaign-generation-nodes.ts`. |
 
 ## Deploy on Render
 

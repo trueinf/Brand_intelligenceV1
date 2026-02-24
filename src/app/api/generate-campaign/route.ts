@@ -71,7 +71,8 @@ export async function POST(request: Request) {
 
     const jobId = await createCampaignJob(input);
 
-    processCampaignJob(jobId).catch(() => {});
+    // Temporarily await to confirm worker runs to completion (otherwise may be terminated early on serverless).
+    await processCampaignJob(jobId);
 
     return NextResponse.json({ jobId });
   } catch (e) {
