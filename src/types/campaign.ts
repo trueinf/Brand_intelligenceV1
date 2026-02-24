@@ -58,10 +58,39 @@ export interface GeneratedAdImage {
   url: string;
 }
 
+/** Precomputed campaign brain for fast video (no strategist/creative rerun). */
+export type CampaignBrain = {
+  brief: string;
+  audience: string;
+  hook: string;
+  valueProposition: string;
+  visualStyle: string;
+  scenes: string[];
+  cta: string;
+};
+
 export interface CampaignOutput {
   brief: CampaignBrief;
   adImages: GeneratedAdImage[];
   videoUrl: string | null;
-  /** Set when ad video step failed (e.g. Runway API error). */
+  /** Set when ad video step failed. */
   videoError?: string | null;
+  /** Set when poster/image generation failed. */
+  posterError?: string | null;
+  /** Stored after strategist+creative for fast video reuse. */
+  campaignBrain?: CampaignBrain;
 }
+
+/** Progress for campaign generation jobs (overall + optional per-asset). */
+export type CampaignJobProgress = {
+  overallPercent: number;
+  step: string;
+  image?: {
+    percent: number;
+    step: string;
+  };
+  video?: {
+    percent: number;
+    step: string;
+  };
+};

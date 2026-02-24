@@ -58,4 +58,4 @@ Image is saved to `public/creatives/` and returned as a path (e.g. use `https://
 ## LinkedIn specs
 
 - **Single image post:** 1200×627 (landscape) or 1080×1080 (square)
-- **Document / hero:** 1792×1024 is generated; crop to 1200×627 if needed for link preview
+- **Document / hero:** 1536×1024 is generated; crop to 1200×627 if needed for link preview

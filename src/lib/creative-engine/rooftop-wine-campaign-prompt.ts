@@ -11,5 +11,5 @@ export const ROOFTOP_WINE_EVENT_TITLE = "Skyline Reserve";
 /** Suggested date + CTA line (bottom copy). */
 export const ROOFTOP_WINE_DATE_CTA = "June 22 · Reserve your place";
 
-/** DALL·E 3 size: portrait for strong top/bottom copy space. */
-export const ROOFTOP_WINE_IMAGE_SIZE = "1024x1792" as const;
+/** Supported portrait size for strong top/bottom copy space. */
+export const ROOFTOP_WINE_IMAGE_SIZE = "1024x1536" as const;

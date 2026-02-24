@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { SearchBar } from "@/components/dashboard/search-bar";
 import { BrandHeader } from "@/components/dashboard/brand-header";
@@ -15,19 +15,19 @@ import { ChannelMixDonut } from "@/components/dashboard/channel-mix-donut";
 import { GeoOpportunityCard } from "@/components/dashboard/geo-opportunity-card";
 import { StrategicRecommendationCard } from "@/components/dashboard/strategic-recommendation-card";
 import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import Link from "next/link";
-import { Loader2, Download, LayoutGrid, ImageIcon, FolderOpen } from "lucide-react";
-import { Player } from "@remotion/player";
-import {
-  StrategyVideo,
-  getStrategyVideoDuration,
-} from "../../remotion/StrategyVideo";
+import { Loader2, ImageIcon, Video } from "lucide-react";
 import type { AnalyzeBrandResponse, Campaign } from "@/types";
-import { type VideoScript, isVideoSceneArray } from "@/types/video";
+import type { CampaignOutput, CampaignJobProgress } from "@/types/campaign";
+import { mapAnalyzeToCampaignInput } from "@/lib/mapAnalyzeToCampaignInput";
 
-const REMOTION_FPS = 30;
-const REMOTION_WIDTH = 1920;
-const REMOTION_HEIGHT = 1080;
+const POLL_INTERVAL_MS = 1000;
+const AD_TYPE_LABELS: Record<string, string> = {
+  social_post: "Social post",
+  banner: "Banner",
+  product_focus: "Product focus",
+};
 
 const container = {
   hidden: { opacity: 0 },
@@ -45,22 +45,44 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
-  const [videoScript, setVideoScript] = useState<VideoScript | null>(null);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+
+  const [posterLoading, setPosterLoading] = useState(false);
+  const [posterOutput, setPosterOutput] = useState<CampaignOutput | null>(null);
+  const [posterError, setPosterError] = useState<string | null>(null);
+  const [posterProgress, setPosterProgress] = useState<CampaignJobProgress | null>(null);
+
   const [videoLoading, setVideoLoading] = useState(false);
+  const [videoOutput, setVideoOutput] = useState<CampaignOutput | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
-  const [renderLoading, setRenderLoading] = useState(false);
-  const [renderError, setRenderError] = useState<string | null>(null);
-  const [exportedVideoUrl, setExportedVideoUrl] = useState<string | null>(null);
+  const [videoProgress, setVideoProgress] = useState<CampaignJobProgress | null>(null);
+
+  /** Precomputed brain ID from analyze-brand (enables fast video on first click). */
+  const [analyzeCampaignBrainId, setAnalyzeCampaignBrainId] = useState<string | null>(null);
+  /** Job ID of last completed run that has campaignBrain (enables video-fast). */
+  const [campaignBrainJobId, setCampaignBrainJobId] = useState<string | null>(null);
+
+  const [activeJobMode, setActiveJobMode] = useState<"image" | "video" | "video-fast" | "both" | null>(null);
+  const currentJobIdRef = useRef<string | null>(null);
+  const activeJobModeRef = useRef<"image" | "video" | "video-fast" | "both" | null>(null);
+
+  const campaignApiBase =
+    typeof process.env.NEXT_PUBLIC_CAMPAIGN_API_URL === "string"
+      ? process.env.NEXT_PUBLIC_CAMPAIGN_API_URL.replace(/\/$/, "")
+      : null;
 
   const handleSearch = useCallback(async (brandInput: string) => {
     setLoading(true);
     setError(null);
     setResult(null);
     setSelectedCampaign(null);
-    setVideoScript(null);
-    setAudioUrl(null);
+    setPosterOutput(null);
+    setPosterError(null);
+    setPosterProgress(null);
+    setVideoOutput(null);
     setVideoError(null);
+    setVideoProgress(null);
+    setAnalyzeCampaignBrainId(null);
+    setCampaignBrainJobId(null);
     try {
       const res = await fetch("/api/analyze-brand", {
         method: "POST",
@@ -83,6 +105,7 @@ export default function Home() {
         return;
       }
       setResult(data as AnalyzeBrandResponse);
+      if (data.campaignBrainId) setAnalyzeCampaignBrainId(data.campaignBrainId);
       if (data.campaigns?.length > 0) {
         setSelectedCampaign(data.campaigns[0]);
       }
@@ -93,89 +116,166 @@ export default function Home() {
     }
   }, []);
 
-  const handleGenerateVideo = useCallback(async () => {
-    if (!result) return;
-    setVideoLoading(true);
-    setVideoError(null);
-    setRenderError(null);
-    setExportedVideoUrl(null);
-    try {
-      const res = await fetch("/api/generate-video", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dashboardData: result }),
-      });
-      let data: { title?: string; scenes?: unknown[]; audioUrl?: string; audioBase64?: string; error?: string };
+  const runCampaignJob = useCallback(
+    async (mode: "image" | "video") => {
+      if (!result) return;
+      const input = mapAnalyzeToCampaignInput(result);
+      if (!input.brandName) {
+        if (mode === "image") setPosterError("Brand name missing");
+        else setVideoError("Brand name missing");
+        return;
+      }
+      const setLoadingState = mode === "image" ? setPosterLoading : setVideoLoading;
+      const setOutput = mode === "image" ? setPosterOutput : setVideoOutput;
+      const setJobError = mode === "image" ? setPosterError : setVideoError;
+      const setProgress = mode === "image" ? setPosterProgress : setVideoProgress;
+      setLoadingState(true);
+      setJobError(null);
+      setOutput(null);
+      setProgress(null);
+      setVideoOutput(null);
+      setPosterOutput(null);
+      setPosterError(null);
+      setVideoError(null);
+      setPosterProgress(null);
+      setVideoProgress(null);
+      const campaignBrainId = analyzeCampaignBrainId ?? campaignBrainJobId;
+      const useFastVideo = mode === "video" && campaignBrainId != null;
+      const requestBody = useFastVideo
+        ? { input: { ...input, campaignBrainId }, mode: "video-fast" as const }
+        : { input, mode };
       try {
-        data = await res.json();
-      } catch {
-        setVideoError(
-          res.status === 504
-            ? "Request timed out. Video generation can take a minute—try again."
-            : "Video generation failed (invalid response)."
-        );
-        setVideoLoading(false);
-        return;
-      }
-      if (!res.ok) {
-        setVideoError(
-          res.status === 504
-            ? "Request timed out. Video generation can take a minute—try again."
-            : data.error ?? "Video generation failed"
-        );
-        setVideoLoading(false);
-        return;
-      }
-      if (data.title && isVideoSceneArray(data.scenes)) {
-        setVideoScript({ title: data.title, scenes: data.scenes });
-        if (data.audioUrl) {
-          setAudioUrl(data.audioUrl);
-        } else if (data.audioBase64) {
-          const bytes = Uint8Array.from(atob(data.audioBase64), (c) => c.charCodeAt(0));
-          const blob = new Blob([bytes], { type: "audio/mpeg" });
-          setAudioUrl(URL.createObjectURL(blob));
+        const url = campaignApiBase
+          ? `${campaignApiBase}/generate-campaign`
+          : "/api/generate-campaign";
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+        });
+        const postJson = (await res.json().catch(() => ({}))) as { jobId?: string; error?: string };
+        if (!res.ok) {
+          setJobError(postJson.error ?? "Failed to start generation");
+          setLoadingState(false);
+          return;
         }
-      }
-    } catch (e) {
-      setVideoError(e instanceof Error ? e.message : "Request failed");
-    } finally {
-      setVideoLoading(false);
-    }
-  }, [result]);
+        const jobId = postJson.jobId;
+        if (!jobId) {
+          setJobError("No job ID returned");
+          setLoadingState(false);
+          return;
+        }
+        const effectiveMode = useFastVideo ? "video-fast" : mode;
+        currentJobIdRef.current = jobId;
+        activeJobModeRef.current = effectiveMode;
+        setActiveJobMode(effectiveMode);
+        console.log("[campaign-ui] START JOB", effectiveMode, jobId);
 
-  const handleDownloadVideo = useCallback(async () => {
-    if (!videoScript || !audioUrl) return;
-    setRenderLoading(true);
-    setRenderError(null);
-    setExportedVideoUrl(null);
-    try {
-      const brandName = result?.brand_overview?.name ?? undefined;
-      const res = await fetch("/api/render-video", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: videoScript.title,
-          scenes: videoScript.scenes,
-          audioUrl,
-          brandName,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setRenderError(data.error ?? "Render failed");
-        setRenderLoading(false);
-        return;
+        const startPolling = (pollJobId: string) => {
+          const poll = async (): Promise<boolean> => {
+            const statusUrl = campaignApiBase
+              ? `${campaignApiBase}/campaign-status?jobId=${encodeURIComponent(pollJobId)}`
+              : `/api/campaign-status?jobId=${encodeURIComponent(pollJobId)}`;
+            try {
+              const statusRes = await fetch(statusUrl, { cache: "no-store" });
+              const statusJson = (await statusRes.json().catch(() => ({}))) as {
+                status?: string;
+                output?: CampaignOutput;
+                error?: string;
+                progress?: CampaignJobProgress;
+              };
+              console.log("[campaign-ui] POLLING", pollJobId, statusJson);
+              if (pollJobId !== currentJobIdRef.current) {
+                setLoadingState(false);
+                return true;
+              }
+              if (statusJson.progress != null) {
+              setProgress(statusJson.progress);
+            }
+            if (statusRes.status === 404) {
+              setJobError("Job not found or expired");
+              setLoadingState(false);
+              return true;
+            }
+            if (!statusRes.ok) {
+              setJobError((statusJson as { error?: string }).error ?? "Failed to get status");
+              setLoadingState(false);
+              return true;
+            }
+            const status = statusJson.status;
+            if (status === "completed" && statusJson.output) {
+              if (pollJobId !== currentJobIdRef.current) {
+                setLoadingState(false);
+                return true;
+              }
+              const out = statusJson.output;
+              if (out.campaignBrain) setCampaignBrainJobId(pollJobId);
+              const outputWithResolvedUrls =
+                campaignApiBase && (out.adImages?.length ?? 0) > 0
+                  ? {
+                      ...out,
+                      adImages: out.adImages.map((img) => ({
+                        ...img,
+                        url:
+                          img.url.startsWith("http") || img.url.startsWith("data:")
+                            ? img.url
+                            : `${campaignApiBase}${img.url.startsWith("/") ? "" : "/"}${img.url}`,
+                      })),
+                    }
+                  : out;
+              const jobMode = activeJobModeRef.current;
+              if (jobMode === "video" || jobMode === "video-fast") {
+                setVideoOutput(outputWithResolvedUrls);
+              } else if (jobMode === "image") {
+                setPosterOutput(outputWithResolvedUrls);
+              } else if (jobMode === "both") {
+                if (outputWithResolvedUrls.videoUrl) setVideoOutput(outputWithResolvedUrls);
+                if (outputWithResolvedUrls.adImages?.length) setPosterOutput(outputWithResolvedUrls);
+              } else {
+                setOutput(outputWithResolvedUrls);
+              }
+              console.log("[campaign-ui] job completed", jobMode, outputWithResolvedUrls);
+              setLoadingState(false);
+              return true;
+            }
+            if (status === "failed") {
+              if (pollJobId !== currentJobIdRef.current) {
+                setLoadingState(false);
+                return true;
+              }
+              const err =
+                (activeJobModeRef.current === "image" && (statusJson.output as CampaignOutput | undefined)?.posterError) ||
+                statusJson.error ||
+                "Generation failed";
+              setJobError(err);
+              setLoadingState(false);
+              return true;
+            }
+            return false;
+          } catch {
+            return false;
+          }
+        };
+          (async () => {
+            let done = await poll();
+            if (done) return;
+            const intervalId = setInterval(async () => {
+              done = await poll();
+              if (done) clearInterval(intervalId);
+            }, POLL_INTERVAL_MS);
+          })();
+        };
+        startPolling(jobId);
+      } catch (e) {
+        setJobError(e instanceof Error ? e.message : "Request failed");
+        setLoadingState(false);
       }
-      if (data.videoUrl) {
-        setExportedVideoUrl(data.videoUrl);
-        window.open(data.videoUrl, "_blank");
-      }
-    } catch (e) {
-      setRenderError(e instanceof Error ? e.message : "Request failed");
-    } finally {
-      setRenderLoading(false);
-    }
-  }, [videoScript, audioUrl, result]);
+    },
+    [result, campaignApiBase, analyzeCampaignBrainId, campaignBrainJobId]
+  );
+
+  const handleGeneratePosters = useCallback(() => runCampaignJob("image"), [runCampaignJob]);
+  const handleGenerateVideo = useCallback(() => runCampaignJob("video"), [runCampaignJob]);
 
   const synthetic = result?.synthetic_data;
   const trafficTrend = result?.traffic_trend ?? synthetic?.traffic_trend ?? [];
@@ -191,14 +291,11 @@ export default function Home() {
               Brand Campaign Intelligence
             </h1>
             <nav className="flex gap-2">
-              <Link href="/dashboard" className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground">
-                <LayoutGrid className="h-4 w-4" /> Dashboard
-              </Link>
-              <Link href="/campaign-studio" className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground">
-                <ImageIcon className="h-4 w-4" /> Campaign Studio
-              </Link>
-              <Link href="/assets" className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground">
-                <FolderOpen className="h-4 w-4" /> Assets
+              <Link
+                href="/assets"
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <ImageIcon className="h-4 w-4" /> Assets
               </Link>
             </nav>
           </div>
@@ -233,95 +330,200 @@ export default function Home() {
               brandContext={result.brand_context}
             />
 
-            <motion.div
-              variants={container}
-              className="mb-6 flex flex-col gap-3"
-            >
+            {/* Section 3: Actions */}
+            <motion.div variants={container} className="mb-6 flex flex-col gap-3">
+              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                Generate campaign assets
+              </h2>
               <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleGenerateVideo}
-                  disabled={videoLoading}
-                  className="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-50 disabled:pointer-events-none transition-colors"
-                >
-                  {videoLoading ? "Generating strategy video…" : "Generate Strategy Video"}
-                </button>
-                {videoError && (
-                  <p className="text-sm text-destructive">{videoError}</p>
-                )}
-              </div>
-              {videoLoading && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-                  <span>Generating script and voiceover…</span>
+                <div className="flex flex-col gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleGeneratePosters}
+                    disabled={posterLoading || !result}
+                    className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-50 disabled:pointer-events-none transition-colors"
+                  >
+                    {posterLoading ? (
+                      posterProgress != null ? (
+                        <span className="tabular-nums">
+                          {(posterProgress.overallPercent ?? (posterProgress as { percent?: number }).percent) ?? 0}%
+                        </span>
+                      ) : (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      )
+                    ) : (
+                      <ImageIcon className="h-4 w-4" />
+                    )}
+                    {posterLoading
+                      ? posterProgress?.image?.step ?? posterProgress?.step ?? "Generating posters… (1–2 min)"
+                      : "Generate campaign posters"}
+                  </button>
+                  {posterLoading && posterProgress != null && (
+                    <div className="flex flex-col gap-1 w-full max-w-xs">
+                      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                        <div
+                          className="h-full bg-primary transition-[width] duration-300"
+                          style={{
+                            width: `${posterProgress.overallPercent ?? (posterProgress as { percent?: number }).percent ?? 0}%`,
+                          }}
+                        />
+                      </div>
+                      {posterProgress.image != null && (
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-xs text-muted-foreground">Posters: {posterProgress.image.step}</span>
+                          <div className="h-1 w-full rounded-full bg-muted/80 overflow-hidden">
+                            <div
+                              className="h-full bg-primary/80 transition-[width] duration-300"
+                              style={{ width: `${posterProgress.image.percent}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              )}
-              {videoScript && audioUrl && !videoLoading && (
-                <div className="rounded-xl border border-border bg-card shadow-sm max-w-2xl space-y-4 p-4">
-                  <h3 className="text-sm font-medium text-muted-foreground">
-                    Strategy script & voiceover
-                  </h3>
-                  <p className="text-sm font-medium">{videoScript.title}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {videoScript.scenes.length} scenes — preview below, then export MP4
-                  </p>
-                  <div className="flex flex-col gap-2">
-                    <span className="text-xs text-muted-foreground">Voiceover</span>
-                    <audio src={audioUrl} controls className="w-full max-w-md" />
-                  </div>
-                  <div className="rounded-lg overflow-hidden bg-black/80" style={{ aspectRatio: "16/9", maxHeight: 360 }}>
-                    <Player
-                      component={StrategyVideo}
-                      inputProps={{
-                        title: videoScript.title,
-                        scenes: videoScript.scenes,
-                        audioUrl,
-                      }}
-                      durationInFrames={getStrategyVideoDuration(videoScript.scenes.length)}
-                      compositionWidth={REMOTION_WIDTH}
-                      compositionHeight={REMOTION_HEIGHT}
-                      fps={REMOTION_FPS}
-                      style={{ width: "100%", height: "100%" }}
-                      controls
-                      loop
-                    />
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={handleDownloadVideo}
-                      disabled={renderLoading}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-50 disabled:pointer-events-none transition-colors"
-                    >
-                      {renderLoading ? (
+                <div className="flex flex-col gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleGenerateVideo}
+                    disabled={videoLoading || !result}
+                    className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-50 disabled:pointer-events-none transition-colors"
+                  >
+                    {videoLoading ? (
+                      videoProgress != null ? (
+                        <span className="tabular-nums">
+                          {(videoProgress.overallPercent ?? (videoProgress as { percent?: number }).percent) ?? 0}%
+                        </span>
+                      ) : (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      )
+                    ) : (
+                      <Video className="h-4 w-4" />
+                    )}
+                    {videoLoading
+                      ? videoProgress?.video?.step ?? videoProgress?.step ?? "Generating video… (may take several min)"
+                      : "Generate campaign video"}
+                  </button>
+                  {videoLoading && videoProgress != null && (
+                    <div className="flex flex-col gap-1 w-full max-w-xs">
+                      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                        <div
+                          className="h-full bg-primary transition-[width] duration-300"
+                          style={{
+                            width: `${videoProgress.overallPercent ?? (videoProgress as { percent?: number }).percent ?? 0}%`,
+                          }}
+                        />
+                      </div>
+                      {videoProgress.video != null && (
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-xs text-muted-foreground">Video: {videoProgress.video.step}</span>
+                          <div className="h-1 w-full rounded-full bg-muted/80 overflow-hidden">
+                            <div
+                              className="h-full bg-primary/80 transition-[width] duration-300"
+                              style={{ width: `${videoProgress.video.percent}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+              {posterError && <p className="text-sm text-destructive">{posterError}</p>}
+              {videoError && <p className="text-sm text-destructive">{videoError}</p>}
+            </motion.div>
+
+            {/* Section 4: Results */}
+            {(posterOutput ?? videoOutput) && (
+              <motion.div variants={container} className="mb-8 space-y-6">
+                <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                  Results
+                </h2>
+                {posterOutput && (
+                  <Card className="rounded-2xl border border-border/80 bg-card/80 shadow-sm">
+                    <CardHeader className="pb-2">
+                      <h3 className="text-sm font-semibold tracking-tight text-foreground">
+                        Campaign posters
+                      </h3>
+                    </CardHeader>
+                    <CardContent>
+                      {(posterOutput.adImages?.length ?? 0) > 0 ? (
                         <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Rendering…
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {posterOutput.adImages.map((img) => (
+                              <div
+                                key={img.type}
+                                className="rounded-lg overflow-hidden border border-border/60"
+                              >
+                                <a href={img.url} target="_blank" rel="noreferrer" className="block">
+                                  <img
+                                    src={img.url}
+                                    alt={AD_TYPE_LABELS[img.type] ?? img.type}
+                                    className="w-full h-auto object-cover max-h-48"
+                                  />
+                                </a>
+                                <p className="p-2 text-xs text-muted-foreground">
+                                  {AD_TYPE_LABELS[img.type] ?? img.type}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                          {posterOutput.brief?.campaignConcept && (
+                            <p className="mt-3 text-sm text-muted-foreground">
+                              {posterOutput.brief.campaignConcept}
+                            </p>
+                          )}
                         </>
                       ) : (
-                        <>
-                          <Download className="h-4 w-4" />
-                          Download Video
-                        </>
+                        <p className="text-sm text-destructive">
+                          {posterOutput.posterError ?? posterOutput.videoError ?? "Posters could not be generated. Check server logs or try again."}
+                        </p>
                       )}
-                    </button>
-                    {renderError && (
-                      <p className="text-sm text-destructive">{renderError}</p>
-                    )}
-                    {exportedVideoUrl && (
-                      <a
-                        href={exportedVideoUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-sm text-primary hover:underline"
-                      >
-                        Open MP4
-                      </a>
-                    )}
-                  </div>
-                </div>
-              )}
-            </motion.div>
+                    </CardContent>
+                  </Card>
+                )}
+                {videoOutput && (videoOutput.videoUrl ?? videoOutput.videoError) && (
+                  <Card className="rounded-2xl border border-border/80 bg-card/80 shadow-sm">
+                    <CardHeader className="pb-2">
+                      <h3 className="text-sm font-semibold tracking-tight text-foreground">
+                        Campaign video
+                      </h3>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {videoOutput.videoUrl ? (
+                        <div className="rounded-lg overflow-hidden bg-black/90 max-w-2xl">
+                          <video
+                            src={videoOutput.videoUrl}
+                            controls
+                            className="w-full aspect-video"
+                            playsInline
+                          >
+                            Your browser does not support the video tag.
+                          </video>
+                          <a
+                            href={videoOutput.videoUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-block mt-2 text-sm text-primary hover:underline"
+                          >
+                            Open video in new tab
+                          </a>
+                        </div>
+                      ) : (
+                        videoOutput.videoError && (
+                          <p className="text-sm text-destructive">{videoOutput.videoError}</p>
+                        )
+                      )}
+                      {videoOutput.brief?.campaignConcept && (
+                        <p className="text-sm text-muted-foreground">
+                          {videoOutput.brief.campaignConcept}
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+              </motion.div>
+            )}
 
             {trafficTrend.length > 0 && (
               <div className="mb-6">

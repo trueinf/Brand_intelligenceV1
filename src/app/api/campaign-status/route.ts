@@ -36,13 +36,21 @@ export async function GET(request: Request) {
       status: string;
       output?: import("@/types/campaign").CampaignOutput;
       error?: string;
+      progress?: import("@/types/campaign").CampaignJobProgress;
     } = {
       status: job.status,
     };
     if (job.output) response.output = job.output;
     if (job.error) response.error = job.error;
+    if (job.progress) response.progress = job.progress;
 
-    return NextResponse.json(response);
+    return NextResponse.json(response, {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        Pragma: "no-cache",
+        Expires: "0",
+      },
+    });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to get job status";
     console.error("[campaign-status]", e);

@@ -4,7 +4,12 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '2mb',
     },
-    serverComponentsExternalPackages: ['@remotion/renderer'],
+  },
+  async redirects() {
+    return [
+      { source: "/dashboard", destination: "/", permanent: false },
+      { source: "/campaign-studio", destination: "/", permanent: false },
+    ];
   },
 };
 

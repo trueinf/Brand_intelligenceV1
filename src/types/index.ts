@@ -236,6 +236,8 @@ export interface AnalyzeBrandResponse {
   youtube_creatives?: YouTubeCreative[];
   campaign_timeline?: CampaignTimelineEvent[];
   traffic_trend?: TrafficTrendPoint[];
+  /** Precomputed campaign brain ID for fast video (from analyze or previous job). */
+  campaignBrainId?: string;
 }
 
 // ---------- Video generation (strategy video) ----------

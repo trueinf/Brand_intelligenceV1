@@ -5,7 +5,7 @@
 
 const XAI_BASE = "https://api.x.ai/v1/videos";
 const POLL_INTERVAL_MS = 5000;
-const POLL_TIMEOUT_MS = 600000; // 10 min
+const POLL_TIMEOUT_MS = 45 * 60 * 1000; // 45 min (xAI can take many minutes)
 
 function getApiKey(): string {
   const key = process.env.XAI_API_KEY;
@@ -72,6 +72,7 @@ export async function generateVideoFromPrompt(
   const apiKey = getApiKey();
   const requestId = await startGeneration(apiKey, prompt, options);
   const deadline = Date.now() + POLL_TIMEOUT_MS;
+  console.log("[xai-video] Polling until deadline in", POLL_TIMEOUT_MS / 60000, "min (requestId:", requestId, ")");
 
   while (Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));

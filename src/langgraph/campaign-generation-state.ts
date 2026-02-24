@@ -13,6 +13,8 @@ import type {
 export interface CampaignGenerationInput {
   brandName: string;
   campaignId?: string;
+  /** When set, skip strategist + creative and use stored brain (video-fast). */
+  campaignBrainId?: string;
   brandOverview?: { name: string; domain: string; summary?: string };
   keywordIntelligence?: {
     coreKeywords?: string[];
@@ -28,8 +30,13 @@ export interface CampaignGenerationInput {
   campaignsSummary?: string;
 }
 
+export type CampaignGenerationMode = "image" | "video" | "both" | "video-fast";
+
 export const CampaignGenerationStateAnnotation = Annotation.Root({
+  /** Set by worker for step logging (GENERATING IMAGES / GENERATING VIDEO). */
+  jobId: Annotation<string | null>(),
   input: Annotation<CampaignGenerationInput>(),
+  mode: Annotation<CampaignGenerationMode>(),
   campaignBrief: Annotation<CampaignBrief | null>(),
   creativePrompts: Annotation<CampaignCreativePrompts | null>(),
   adImages: Annotation<GeneratedAdImage[]>(),

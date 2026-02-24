@@ -20,11 +20,11 @@ export type VisualSpec = {
   platform_ratio: string;
 };
 
-/** Platform ratio to DALL·E 3 size (width x height). */
+/** Platform ratio to supported image API size (width x height). */
 export const PLATFORM_RATIO_TO_SIZE: Record<string, { width: number; height: number }> = {
   "1:1": { width: 1024, height: 1024 },
-  "16:9": { width: 1792, height: 1024 },
-  "9:16": { width: 1024, height: 1792 },
-  "4:5": { width: 1024, height: 1280 },
-  "5:4": { width: 1280, height: 1024 },
+  "16:9": { width: 1536, height: 1024 },
+  "9:16": { width: 1024, height: 1536 },
+  "4:5": { width: 1024, height: 1536 },
+  "5:4": { width: 1536, height: 1024 },
 };

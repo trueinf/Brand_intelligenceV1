@@ -1,9 +1,11 @@
 /**
  * Shared campaign image generator service.
  * Single entry point for all campaign visuals; uses gpt-image-1, platform-aware, creative-direction-driven.
+ * Uses getPosterSize for supported sizes only (1024x1024, 1024x1536, 1536x1024, auto).
  */
 
 import { getOpenAIClient } from "@/lib/openai";
+import { getPosterSize, normalizePosterSize } from "@/lib/getPosterSize";
 
 export type CampaignImagePlatform =
   | "instagram"
@@ -35,14 +37,6 @@ export type CreativeDirectionForImage = {
   copy_layout?: {
     headline_zone?: string;
   };
-};
-
-const PLATFORM_SIZES: Record<CampaignImagePlatform, string> = {
-  instagram: "1024x1536",
-  linkedin: "1024x1024",
-  story: "1024x1792",
-  website: "1792x1024",
-  print: "1024x1536",
 };
 
 const STYLE_SUFFIX = `
@@ -143,8 +137,8 @@ export async function generateCampaignImage({
   const openai = getOpenAIClient();
   let prompt = buildPromptFromCreativeDirection(creativeDirection);
 
-  type SizeOption = "1024x1024" | "1024x1536" | "1024x1792" | "1536x1024" | "1792x1024";
-  const size = PLATFORM_SIZES[platform] as SizeOption;
+  let size = getPosterSize(platform);
+  size = normalizePosterSize(size);
 
   try {
     const result = await openai.images.generate({
@@ -200,4 +194,3 @@ export async function generateCampaignImage({
   }
 }
 
-export { PLATFORM_SIZES };

@@ -49,4 +49,4 @@ Response:
 }
 ```
 
-Image is generated in portrait (1024×1792) to maximize top and bottom copy space.
+Image is generated in portrait (1024×1536) to maximize top and bottom copy space.

@@ -8,7 +8,7 @@ import "dotenv/config";
 import path from "path";
 import express from "express";
 import cors from "cors";
-import { handleGenerateCampaign } from "./routes/campaign";
+import { handleGenerateCampaign, handleGetCampaignStatus } from "./routes/campaign";
 
 const app = express();
 const PORT = process.env.PORT ?? 3001;
@@ -33,6 +33,7 @@ app.use("/videos", express.static(path.join(publicDir, "videos")));
 app.use("/audio", express.static(path.join(publicDir, "audio")));
 
 app.post("/generate-campaign", handleGenerateCampaign);
+app.get("/campaign-status", handleGetCampaignStatus);
 
 app.get("/health", (_req, res) => {
   res.status(200).json({ ok: true });

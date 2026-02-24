@@ -225,6 +225,9 @@ const VARIANT_TO_PLATFORM_AND_VISUAL: Record<
 export async function adImageGenerationNode(
   state: CampaignGenerationState
 ): Promise<CampaignGenerationUpdate> {
+  if (state.jobId) {
+    console.log("[campaign-worker] GENERATING IMAGES", state.jobId);
+  }
   const prompts = state.creativePrompts;
   const brief = state.campaignBrief;
   if (!prompts?.imagePrompt || !brief) return { error: state.error ?? "Creative prompts missing" };
@@ -280,6 +283,9 @@ export async function adImageGenerationNode(
     }
     return { adImages, error: null };
   } catch (e) {
+    if (state.jobId) {
+      console.error("[campaign-worker] IMAGE GENERATION FAILED", state.jobId, e);
+    }
     const message = e instanceof Error ? e.message : "Ad image generation failed";
     return { error: message };
   }
@@ -288,6 +294,9 @@ export async function adImageGenerationNode(
 export async function adVideoGenerationNode(
   state: CampaignGenerationState
 ): Promise<CampaignGenerationUpdate> {
+  if (state.jobId) {
+    console.log("[campaign-worker] GENERATING VIDEO", state.jobId);
+  }
   const prompts = state.creativePrompts;
   if (!prompts?.videoScenePlan?.scenes?.length) {
     return { error: state.error ?? "Video scene plan missing" };
@@ -308,6 +317,9 @@ export async function adVideoGenerationNode(
     const videoUrl = await generateVideoFromPrompt(promptText);
     return { videoUrl, error: null };
   } catch (e) {
+    if (state.jobId) {
+      console.error("[campaign-worker] VIDEO GENERATION FAILED", state.jobId, e);
+    }
     const message = e instanceof Error ? e.message : "Ad video generation failed";
     return { error: message, videoUrl: null };
   }

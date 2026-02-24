@@ -1,6 +1,5 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,11 +15,6 @@ const VIDEO_STEPS: VideoStepType[] = [
   { id: "voiceover", label: "Generating voiceover", done: false, active: false },
   { id: "rendering", label: "Rendering video", done: false, active: false },
 ];
-
-const StrategyVideoPlayer = dynamic(
-  () => import("./StrategyVideoPlayer").then((m) => m.StrategyVideoPlayer),
-  { ssr: false, loading: () => <div className="flex h-full min-h-[180px] items-center justify-center text-sm text-muted-foreground">Loading player…</div> }
-);
 
 function PriorityBadge({ priority }: { priority?: StrategyInsightItem["priority"] }) {
   if (!priority) return null;
@@ -242,26 +236,6 @@ export function StrategyPanel({
                       </li>
                     ))}
                   </ul>
-                </motion.div>
-              )}
-              {videoState === "ready" && videoScript && audioUrl && !campaignOutput && (
-                <motion.div
-                  key="ready"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="w-full"
-                >
-                  {videoError && (
-                    <p className="mb-2 text-xs text-destructive">{videoError}</p>
-                  )}
-                  <div className="rounded-lg overflow-hidden bg-black/90" style={{ aspectRatio: "16/9" }}>
-                    <StrategyVideoPlayer
-                      title={videoScript.title}
-                      scenes={videoScript.scenes}
-                      audioUrl={audioUrl}
-                    />
-                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
