@@ -21,7 +21,13 @@ function faviconUrl(domain: string): string {
   return `https://www.google.com/s2/favicons?domain=${d}&sz=32`;
 }
 
-// Fallback when favicon 404s (e.g. mock domains like competitor1.com)
+// Mock data uses placeholder domains that have no real favicon — avoid requesting Google to prevent 404s
+function isMockCompetitorDomain(domain: string): boolean {
+  const d = domain.replace(/^https?:\/\//, "").split("/")[0].toLowerCase();
+  return /^competitor\d+\.(com|io|co)$/.test(d);
+}
+
+// Fallback when favicon 404s or for mock domains (no external request)
 const FALLBACK_FAVICON =
   "data:image/svg+xml," +
   encodeURIComponent(
@@ -53,7 +59,7 @@ export function CompetitorBarList({ competitors, maxItems = 5, className }: Comp
         {list.map((c) => {
           const score = c.score ?? c.overlap ?? c.overlap_score ?? 0;
           const pct = maxScore > 0 ? (score / maxScore) * 100 : 0;
-          const useFallback = failedFavicons.has(c.domain);
+          const useFallback = isMockCompetitorDomain(c.domain) || failedFavicons.has(c.domain);
           return (
             <div key={c.domain} className="flex items-center gap-3">
               <img
