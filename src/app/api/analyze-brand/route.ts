@@ -11,6 +11,16 @@ export const maxDuration = 10;
  */
 export async function POST(request: Request) {
   try {
+    if (!process.env.INNGEST_EVENT_KEY?.trim()) {
+      return NextResponse.json(
+        {
+          error:
+            "Server configuration error: INNGEST_EVENT_KEY is not set. Add it in Netlify (Site settings → Environment variables) and redeploy.",
+        },
+        { status: 503 }
+      );
+    }
+
     const body = await request.json();
     const brand = typeof body?.brand === "string" ? body.brand.trim() : "";
     if (!brand) {
@@ -24,6 +34,10 @@ export async function POST(request: Request) {
     const job = await prisma.analysisJob.create({
       data: { brand, userId, status: "pending" },
     });
+
+    // Set event key at request time (Netlify serverless may not have env at module load)
+    const eventKey = process.env.INNGEST_EVENT_KEY?.trim();
+    if (eventKey) inngest.setEventKey(eventKey);
 
     await inngest.send({
       name: "brand/analyze",

@@ -74,6 +74,8 @@ Set these in **Site settings → Environment variables** (or in `netlify.toml` /
 | `CLEARBIT_API_KEY` | Optional | Company enrichment. |
 | `SERPAPI_KEY` | Optional | YouTube creatives, Google Trends. |
 
+For the **analyze-brand** flow to work: set both `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY`, then in [Inngest Cloud](https://app.inngest.com) go to **Manage → Apps** and sync your app with the serve URL (e.g. `https://yoursite.netlify.app/api/inngest`). If `INNGEST_EVENT_KEY` is missing, the API returns 503 with a clear message.
+
 After adding or changing variables, trigger a new deploy so the build and serverless functions use the updated values.
 
 ## LangGraph Flow (Phase-2)
