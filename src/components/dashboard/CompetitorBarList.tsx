@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 
 export interface CompetitorItem {
@@ -20,9 +21,21 @@ function faviconUrl(domain: string): string {
   return `https://www.google.com/s2/favicons?domain=${d}&sz=32`;
 }
 
+// Fallback when favicon 404s (e.g. mock domains like competitor1.com)
+const FALLBACK_FAVICON =
+  "data:image/svg+xml," +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>'
+  );
+
 export function CompetitorBarList({ competitors, maxItems = 5, className }: CompetitorBarListProps) {
   const list = competitors.slice(0, maxItems);
   const maxScore = Math.max(...list.map((c) => c.score ?? c.overlap ?? c.overlap_score ?? 0), 1);
+  const [failedFavicons, setFailedFavicons] = useState<Set<string>>(new Set());
+
+  const handleFaviconError = useCallback((domain: string) => {
+    setFailedFavicons((prev) => new Set(prev).add(domain));
+  }, []);
 
   if (list.length === 0) {
     return (
@@ -40,9 +53,15 @@ export function CompetitorBarList({ competitors, maxItems = 5, className }: Comp
         {list.map((c) => {
           const score = c.score ?? c.overlap ?? c.overlap_score ?? 0;
           const pct = maxScore > 0 ? (score / maxScore) * 100 : 0;
+          const useFallback = failedFavicons.has(c.domain);
           return (
             <div key={c.domain} className="flex items-center gap-3">
-              <img src={faviconUrl(c.domain)} alt="" className="w-5 h-5 rounded shrink-0" />
+              <img
+                src={useFallback ? FALLBACK_FAVICON : faviconUrl(c.domain)}
+                alt=""
+                className="w-5 h-5 rounded shrink-0"
+                onError={() => handleFaviconError(c.domain)}
+              />
               <span className="text-sm text-slate-300 truncate min-w-0 flex-1">{c.domain}</span>
               <div className="flex-1 min-w-0 max-w-[140px] h-2 rounded-full bg-white/10 overflow-hidden">
                 <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-cyan-400 transition-all duration-500" style={{ width: `${pct}%` }} />
