@@ -384,9 +384,15 @@ export default function Home() {
           const brandScore = result.insights?.growth_score ?? synthetic?.domain_overview?.authority_score ?? 0;
           const avgSuccess = result.campaigns?.length ? Math.round(result.campaigns.reduce((s, c) => s + (c.success_score ?? 0), 0) / result.campaigns.length) : 0;
           const marketScore = result.insights?.market_position === "leader" ? 8 : result.insights?.market_position === "challenger" ? 5 : result.insights?.market_position === "niche" ? 3 : (result.insights?.growth_score ?? 0);
+          const formatMonth = (p: { month?: string; date?: string }) => {
+            if (p.month && p.month.length >= 2) return p.month.slice(0, 3);
+            const d = p.date ? new Date(p.date.toString()) : null;
+            if (d && !Number.isNaN(d.getTime())) return d.toLocaleString("en-US", { month: "short" });
+            return (p.date ?? "").toString().slice(0, 3);
+          };
           const trafficChartData = trafficTrend.length > 0
             ? trafficTrend.map((p) => ({
-                month: (p.month ?? p.date ?? "").toString().slice(0, 3),
+                month: formatMonth(p),
                 organic: p.organic ?? 0,
                 paid: p.paid ?? 0,
                 total: p.traffic ?? p.value ?? p.total ?? 0,

@@ -24,9 +24,26 @@ import {
 } from "@/agents/insight-agent";
 import { callClaudeJson } from "@/lib/claude/client";
 import { runBrandCampaignWorkflow } from "@/langgraph/graph";
-import type { AnalyzeBrandResponse, Insights } from "@/types";
+import type {
+  AnalyzeBrandResponse,
+  Insights,
+  SyntheticData,
+  TrafficTrendPoint,
+} from "@/types";
 
 export { runBrandCampaignWorkflow } from "@/langgraph/graph";
+
+const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function dateToMonthLabel(dateStr: string): string {
+  try {
+    const d = new Date(dateStr);
+    const m = d.getMonth();
+    return MONTH_LABELS[m] ?? dateStr.slice(0, 3);
+  } catch {
+    return dateStr.slice(0, 3);
+  }
+}
 
 /** Fast path: no Clearbit/SerpAPI/Google Trends, mock data + 2 Claude calls. Use when FAST_ANALYSIS=true (e.g. Netlify). */
 export async function executeWorkflowFast(
@@ -62,12 +79,59 @@ export async function executeWorkflowFast(
     const insights = insightOut.insights;
     if (!insights) return { success: false, error: "Insight generation returned no data" };
 
+    const do_ = mock.domain_overview;
+    const totalTraffic = (do_.organicTraffic ?? 0) + (do_.paidTraffic ?? 0) || 1;
+    const organicPct = (do_.organicTraffic ?? 0) / totalTraffic;
+    const channel_mix = {
+      organic: Math.round(organicPct * 82),
+      paid: Math.round((1 - organicPct) * 82),
+      social: 10,
+      direct: 8,
+    };
+
+    const traffic_trend: TrafficTrendPoint[] = (mock.traffic_trend ?? []).map((p) => ({
+      ...p,
+      month: p.month ?? dateToMonthLabel((p.date ?? "").toString()),
+    }));
+
+    const synthetic_data: SyntheticData = {
+      domain_overview: {
+        authority_score: Math.min(10, Math.max(1, Math.round(10 - (do_.globalRank ?? 10000) / 5000))),
+        organic_traffic: do_.organicTraffic ?? 0,
+        paid_traffic: do_.paidTraffic ?? 0,
+        backlink_count: (do_.organicKeywords ?? 0) * 15,
+        top_country: "US",
+      },
+      channel_mix,
+      paid_keywords: (mock.paid_keywords ?? []).slice(0, 12).map((k, i) => ({
+        keyword: k.keyword,
+        volume: k.volume,
+        cpc: k.cpc,
+        traffic_share: 8 + (i % 12),
+      })),
+      organic_keywords: (mock.organic_keywords ?? []).slice(0, 12).map((k) => ({
+        keyword: k.keyword,
+        volume: k.volume,
+        position: k.position,
+        traffic_share: k.trafficShare ?? 10,
+      })),
+      competitors: (mock.competitors ?? []).map((c) => ({
+        domain: c.domain,
+        traffic: c.organicTraffic,
+        overlap: c.overlap,
+        overlap_score: c.overlap,
+      })),
+      traffic_trend,
+      campaign_timeline: [],
+    };
+
     const data: AnalyzeBrandResponse = {
       brand_overview,
       brand_context: null,
       campaigns,
       insights,
-      traffic_trend: mock.traffic_trend?.length ? mock.traffic_trend : undefined,
+      traffic_trend: traffic_trend.length > 0 ? traffic_trend : undefined,
+      synthetic_data,
     };
     return { success: true, data };
   } catch (e) {
