@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { inngest } from "@/lib/inngest/client";
 import { getPrisma } from "@/lib/db/prisma";
 import { executeWorkflow, executeWorkflowFast } from "@/lib/langgraph/workflow";
@@ -52,7 +53,7 @@ export const analyzeBrand = inngest.createFunction(
           data: {
             status: "failed",
             error: outcome.error,
-            result: null,
+            result: Prisma.JsonNull,
             updatedAt: new Date(),
           },
         });
@@ -86,7 +87,7 @@ export const analyzeBrand = inngest.createFunction(
         where: { id: jobId },
         data: {
           status: "completed",
-          result: response as unknown as Record<string, unknown>,
+          result: JSON.parse(JSON.stringify(response)) as Prisma.InputJsonValue,
           error: null,
           updatedAt: new Date(),
         },
