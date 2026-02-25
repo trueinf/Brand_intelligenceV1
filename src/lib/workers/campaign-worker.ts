@@ -112,7 +112,7 @@ export async function processCampaignJob(jobId: string): Promise<void> {
         await updateAssetProgress(jobId, "video", 20, "Preparing video");
         console.log("[campaign-worker] SENDING GROK REQUEST");
         const videoUrl = await withTimeout(
-          generateVideoFromPrompt(prompt),
+          generateVideoFromPrompt(prompt, { maxPromptLength: 1200 }),
           VIDEO_JOB_TIMEOUT_MS,
           jobId
         );

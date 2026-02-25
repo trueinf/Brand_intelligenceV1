@@ -94,3 +94,17 @@ export type CampaignJobProgress = {
     step: string;
   };
 };
+
+/** Single asset generation job in per-campaign history (multi-version support). */
+export type AssetVersionStatus = "queued" | "running" | "completed" | "failed";
+
+export interface AssetVersion {
+  jobId: string;
+  version: number;
+  mode: "image" | "video";
+  status: AssetVersionStatus;
+  createdAt: number;
+  progress?: CampaignJobProgress;
+  output?: CampaignOutput;
+  error?: string;
+}

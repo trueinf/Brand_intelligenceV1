@@ -1,9 +1,18 @@
 /**
  * Google Trends interest over time for a brand.
- * Maps to traffic_trend chart in UI. Uses SerpAPI Google Trends when SERPAPI_KEY is set.
+ * Maps to traffic_trend chart in UI.
+ *
+ * Default: synthetic traffic_trend from the full workflow is used (no API call).
+ * To use real Google Trends data, set both:
+ *   - SERPAPI_KEY (your SerpAPI key)
+ *   - ENABLE_GOOGLE_TRENDS=true
  */
 
 import type { TrafficTrendPoint } from "@/types";
+
+function shouldFetchGoogleTrends(): boolean {
+  return process.env.ENABLE_GOOGLE_TRENDS === "true";
+}
 
 function getApiKey(): string | null {
   return process.env.SERPAPI_KEY ?? null;
@@ -18,15 +27,15 @@ interface SerpApiTrendsResponse {
 
 /**
  * Fetch interest over time for brand name. Returns array of { date, value } for chart.
- * Requires SERPAPI_KEY (SerpAPI Google Trends API).
+ * Only runs when ENABLE_GOOGLE_TRENDS=true and SERPAPI_KEY is set; otherwise returns []
+ * and the workflow keeps synthetic traffic_trend.
  */
 export async function fetchInterestOverTime(
   brandName: string
 ): Promise<TrafficTrendPoint[]> {
+  if (!shouldFetchGoogleTrends()) return [];
   const apiKey = getApiKey();
-  if (!apiKey) {
-    return [];
-  }
+  if (!apiKey) return [];
 
   try {
     const params = new URLSearchParams({

@@ -1,6 +1,14 @@
 /**
  * Workflow entry point. Executes LangGraph and returns UI-ready JSON.
- * Fast path (FAST_ANALYSIS): mock data + 2 LLM calls, stays under serverless timeout.
+ *
+ * Default: full workflow (synthetic_data including traffic_trend). Chart uses
+ * synthetic trend; if missing/empty, the frontend passes [] and the chart shows
+ * its built-in fallback.
+ *
+ * Optional: set ENABLE_GOOGLE_TRENDS=true and SERPAPI_KEY to use real Google
+ * Trends data for traffic_trend instead of synthetic.
+ *
+ * Fast path (FAST_ANALYSIS=true or Netlify): mock data + 2 LLM calls only.
  */
 
 import { normalizeBrandInput } from "@/agents/brand-input-agent";

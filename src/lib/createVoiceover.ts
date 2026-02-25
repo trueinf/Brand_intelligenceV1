@@ -1,6 +1,6 @@
 /**
  * @deprecated Strategy video (Remotion) removed. Use "Generate campaign video" on the home page (Grok) instead.
- * Kept for backward compatibility with process-campaign-video-job and video-generation graph.
+ * Kept for backward compatibility with process-campaign-video-job (studio video flow).
  */
 
 export type VoiceoverResult = { url: string } | { base64: string };

@@ -8,7 +8,10 @@ const BRAIN_RACE_MS = 8000;
 /**
  * POST /api/analyze-brand
  * Body: { brand: string }
- * Returns: { brand_overview, campaigns, insights, campaignBrainId? } or { error: string }
+ * Returns: { brand_overview, campaigns, insights, traffic_trend?, synthetic_data?, campaignBrainId? } or { error: string }
+ *
+ * Default: full workflow with synthetic traffic_trend. Set ENABLE_GOOGLE_TRENDS=true
+ * and SERPAPI_KEY to use real Google Trends for traffic_trend.
  */
 export const maxDuration = 60;
 

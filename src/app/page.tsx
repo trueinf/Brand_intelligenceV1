@@ -1,26 +1,34 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { SearchBar } from "@/components/dashboard/search-bar";
-import { BrandHeader } from "@/components/dashboard/brand-header";
-import { CampaignCard } from "@/components/cards/campaign-card";
+import { CampaignCard as LegacyCampaignCard } from "@/components/cards/campaign-card";
 import { CampaignDetail } from "@/components/dashboard/campaign-detail";
 import { CampaignTimelineSection } from "@/components/dashboard/campaign-timeline-section";
-import { TrafficTrendChart } from "@/components/dashboard/traffic-trend-chart";
 import { YouTubeCreativesCard } from "@/components/cards/youtube-creatives-card";
 import { InsightCard } from "@/components/cards/insight-card";
 import { MaturityCard } from "@/components/dashboard/maturity-card";
 import { ChannelMixDonut } from "@/components/dashboard/channel-mix-donut";
+import { GradientAreaTrafficChart } from "@/components/charts/GradientAreaTrafficChart";
+import { ChannelMixDonut as ChartsChannelMixDonut } from "@/components/charts/ChannelMixDonut";
+import { StackedChannelBar } from "@/components/charts/StackedChannelBar";
+import { RadialScore } from "@/components/charts/RadialScore";
+import { KPIStatCard } from "@/components/dashboard/KPIStatCard";
+import { CampaignCard as DashboardCampaignCard } from "@/components/dashboard/CampaignCard";
+import { AssetPerformanceCard } from "@/components/dashboard/AssetPerformanceCard";
+import { CompetitorBarList } from "@/components/dashboard/CompetitorBarList";
+import { InsightPill } from "@/components/dashboard/InsightPill";
 import { GeoOpportunityCard } from "@/components/dashboard/geo-opportunity-card";
 import { StrategicRecommendationCard } from "@/components/dashboard/strategic-recommendation-card";
 import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
-import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import Link from "next/link";
-import { Loader2, ImageIcon, Video } from "lucide-react";
 import type { AnalyzeBrandResponse, Campaign } from "@/types";
-import type { CampaignOutput, CampaignJobProgress } from "@/types/campaign";
+import type { CampaignOutput, CampaignJobProgress, AssetVersion } from "@/types/campaign";
 import { mapAnalyzeToCampaignInput } from "@/lib/mapAnalyzeToCampaignInput";
+import { AssetStudioDrawer, type AssetJobStatus } from "@/components/assets/AssetStudioDrawer";
+import { AssetVersionStack } from "@/components/assets/AssetVersionStack";
+import { AppShell, type AppSection } from "@/components/layout/AppShell";
+import { ImageIcon } from "lucide-react";
 
 const POLL_INTERVAL_MS = 1000;
 const AD_TYPE_LABELS: Record<string, string> = {
@@ -65,10 +73,38 @@ export default function Home() {
   const currentJobIdRef = useRef<string | null>(null);
   const activeJobModeRef = useRef<"image" | "video" | "video-fast" | "both" | null>(null);
 
-  const campaignApiBase =
-    typeof process.env.NEXT_PUBLIC_CAMPAIGN_API_URL === "string"
+  const [assetStudioOpen, setAssetStudioOpen] = useState(false);
+  const [assetStudioDefaultMode, setAssetStudioDefaultMode] = useState<"image" | "video">("image");
+  const [activeSection, setActiveSection] = useState<AppSection>("overview");
+  const [assetHistory, setAssetHistory] = useState<Record<string, AssetVersion[]>>({});
+
+  const assetCount = Object.values(assetHistory).flat().filter((v) => v.status === "completed").length;
+
+  const imageStatus: AssetJobStatus = posterLoading
+    ? "generating"
+    : posterError
+      ? "failed"
+      : posterOutput
+        ? "completed"
+        : "idle";
+  const videoStatus: AssetJobStatus = videoLoading
+    ? "generating"
+    : videoError
+      ? "failed"
+      : videoOutput
+        ? "completed"
+        : "idle";
+
+  // Server alignment: when app is on localhost, always use same-origin /api/* so the worker runs in this process (Grok logs in same terminal).
+  const campaignApiBase = (() => {
+    if (typeof window === "undefined") return null;
+    const origin = window.location?.origin ?? "";
+    const onLocalhost = /^https?:\/\/localhost(:\d+)?$/i.test(origin) || /^https?:\/\/127\.0\.0\.1(:\d+)?$/i.test(origin);
+    if (onLocalhost) return null;
+    return typeof process.env.NEXT_PUBLIC_CAMPAIGN_API_URL === "string"
       ? process.env.NEXT_PUBLIC_CAMPAIGN_API_URL.replace(/\/$/, "")
       : null;
+  })();
 
   const handleSearch = useCallback(async (brandInput: string) => {
     setLoading(true);
@@ -165,6 +201,20 @@ export default function Home() {
           setLoadingState(false);
           return;
         }
+        const campaignId = selectedCampaign?.campaign_name ?? "default";
+        setAssetHistory((prev) => {
+          const list = prev[campaignId] ?? [];
+          const previousVersions = list.filter((v) => v.mode === mode);
+          const newAsset: AssetVersion = {
+            jobId,
+            version: previousVersions.length + 1,
+            mode,
+            status: "queued",
+            createdAt: Date.now(),
+          };
+          return { ...prev, [campaignId]: [...list, newAsset] };
+        });
+
         const effectiveMode = useFastVideo ? "video-fast" : mode;
         currentJobIdRef.current = jobId;
         activeJobModeRef.current = effectiveMode;
@@ -172,12 +222,14 @@ export default function Home() {
         console.log("[campaign-ui] START JOB", effectiveMode, jobId);
 
         const startPolling = (pollJobId: string) => {
+          let consecutiveFailures = 0;
           const poll = async (): Promise<boolean> => {
             const statusUrl = campaignApiBase
               ? `${campaignApiBase}/campaign-status?jobId=${encodeURIComponent(pollJobId)}`
               : `/api/campaign-status?jobId=${encodeURIComponent(pollJobId)}`;
             try {
               const statusRes = await fetch(statusUrl, { cache: "no-store" });
+              consecutiveFailures = 0;
               const statusJson = (await statusRes.json().catch(() => ({}))) as {
                 status?: string;
                 output?: CampaignOutput;
@@ -252,7 +304,16 @@ export default function Home() {
               return true;
             }
             return false;
-          } catch {
+          } catch (e) {
+            consecutiveFailures += 1;
+            const message = e instanceof Error ? e.message : "Network error";
+            // If the dev server restarts or is down, fetch will throw (ERR_CONNECTION_REFUSED).
+            // Don't poll forever in that case—surface an actionable error.
+            if (consecutiveFailures >= 3 || message.includes("ERR_CONNECTION_REFUSED") || message.includes("Failed to fetch")) {
+              setJobError("Lost connection to the server while polling. Restart the dev server and generate a new video.");
+              setLoadingState(false);
+              return true;
+            }
             return false;
           }
         };
@@ -271,11 +332,32 @@ export default function Home() {
         setLoadingState(false);
       }
     },
-    [result, campaignApiBase, analyzeCampaignBrainId, campaignBrainJobId]
+    [result, campaignApiBase, analyzeCampaignBrainId, campaignBrainJobId, selectedCampaign]
   );
 
-  const handleGeneratePosters = useCallback(() => runCampaignJob("image"), [runCampaignJob]);
-  const handleGenerateVideo = useCallback(() => runCampaignJob("video"), [runCampaignJob]);
+  const handleGeneratePosters = useCallback(() => {
+    setAssetStudioDefaultMode("image");
+    setAssetStudioOpen(true);
+  }, []);
+  const handleGenerateVideo = useCallback(() => {
+    setAssetStudioDefaultMode("video");
+    setAssetStudioOpen(true);
+  }, []);
+  const handleAssetStudioGenerate = useCallback(
+    (mode: "image" | "video") => runCampaignJob(mode),
+    [runCampaignJob]
+  );
+
+  const campaignIdForAssets = selectedCampaign?.campaign_name ?? "default";
+  const updateAssetVersion = useCallback(
+    (cid: string, jobId: string, update: Partial<AssetVersion>) => {
+      setAssetHistory((prev) => ({
+        ...prev,
+        [cid]: (prev[cid] ?? []).map((v) => (v.jobId === jobId ? { ...v, ...update } : v)),
+      }));
+    },
+    []
+  );
 
   const synthetic = result?.synthetic_data;
   const trafficTrend = result?.traffic_trend ?? synthetic?.traffic_trend ?? [];
@@ -283,325 +365,220 @@ export default function Home() {
   const maturity = result?.insights?.marketing_maturity_level;
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card/60 sticky top-0 z-10 backdrop-blur rounded-b-xl shadow-sm">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-xl font-bold tracking-tight text-foreground">
-              Brand Campaign Intelligence
-            </h1>
-            <nav className="flex gap-2">
-              <Link
-                href="/assets"
-                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                <ImageIcon className="h-4 w-4" /> Assets
-              </Link>
-            </nav>
-          </div>
-          <SearchBar onSearch={handleSearch} isLoading={loading} />
-          <AnimatePresence>
-            {error && (
-              <motion.p
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="mt-2 text-sm text-destructive"
-              >
-                {error}
-              </motion.p>
-            )}
-          </AnimatePresence>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-6">
+    <>
+      <AppShell
+        activeSection={activeSection}
+        onSectionChange={setActiveSection}
+        onSearch={handleSearch}
+        isSearchLoading={loading}
+        searchError={error}
+        onGenerateAsset={() => setAssetStudioOpen(true)}
+      >
         {loading && <DashboardSkeleton />}
 
-        {!loading && result && (
-          <motion.div
-            variants={container}
-            initial="hidden"
-            animate="show"
-            className="w-full"
-          >
-            <BrandHeader
-              brandOverview={result.brand_overview}
-              brandContext={result.brand_context}
-            />
-
-            {/* Section 3: Actions */}
-            <motion.div variants={container} className="mb-6 flex flex-col gap-3">
-              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                Generate campaign assets
-              </h2>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <button
-                    type="button"
-                    onClick={handleGeneratePosters}
-                    disabled={posterLoading || !result}
-                    className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-50 disabled:pointer-events-none transition-colors"
-                  >
-                    {posterLoading ? (
-                      posterProgress != null ? (
-                        <span className="tabular-nums">
-                          {(posterProgress.overallPercent ?? (posterProgress as { percent?: number }).percent) ?? 0}%
-                        </span>
-                      ) : (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      )
-                    ) : (
-                      <ImageIcon className="h-4 w-4" />
-                    )}
-                    {posterLoading
-                      ? posterProgress?.image?.step ?? posterProgress?.step ?? "Generating posters… (1–2 min)"
-                      : "Generate campaign posters"}
-                  </button>
-                  {posterLoading && posterProgress != null && (
-                    <div className="flex flex-col gap-1 w-full max-w-xs">
-                      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                        <div
-                          className="h-full bg-primary transition-[width] duration-300"
-                          style={{
-                            width: `${posterProgress.overallPercent ?? (posterProgress as { percent?: number }).percent ?? 0}%`,
-                          }}
-                        />
-                      </div>
-                      {posterProgress.image != null && (
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-xs text-muted-foreground">Posters: {posterProgress.image.step}</span>
-                          <div className="h-1 w-full rounded-full bg-muted/80 overflow-hidden">
-                            <div
-                              className="h-full bg-primary/80 transition-[width] duration-300"
-                              style={{ width: `${posterProgress.image.percent}%` }}
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <button
-                    type="button"
-                    onClick={handleGenerateVideo}
-                    disabled={videoLoading || !result}
-                    className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-50 disabled:pointer-events-none transition-colors"
-                  >
-                    {videoLoading ? (
-                      videoProgress != null ? (
-                        <span className="tabular-nums">
-                          {(videoProgress.overallPercent ?? (videoProgress as { percent?: number }).percent) ?? 0}%
-                        </span>
-                      ) : (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      )
-                    ) : (
-                      <Video className="h-4 w-4" />
-                    )}
-                    {videoLoading
-                      ? videoProgress?.video?.step ?? videoProgress?.step ?? "Generating video… (may take several min)"
-                      : "Generate campaign video"}
-                  </button>
-                  {videoLoading && videoProgress != null && (
-                    <div className="flex flex-col gap-1 w-full max-w-xs">
-                      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                        <div
-                          className="h-full bg-primary transition-[width] duration-300"
-                          style={{
-                            width: `${videoProgress.overallPercent ?? (videoProgress as { percent?: number }).percent ?? 0}%`,
-                          }}
-                        />
-                      </div>
-                      {videoProgress.video != null && (
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-xs text-muted-foreground">Video: {videoProgress.video.step}</span>
-                          <div className="h-1 w-full rounded-full bg-muted/80 overflow-hidden">
-                            <div
-                              className="h-full bg-primary/80 transition-[width] duration-300"
-                              style={{ width: `${videoProgress.video.percent}%` }}
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
+        {!loading && result && activeSection === "overview" && (() => {
+          const cm = channelMix ?? { organic: 0, paid: 0, social: 0, direct: 0 };
+          const totalCh = cm.organic + cm.paid + cm.social + cm.direct;
+          const organicPct = totalCh > 0 ? Math.round((cm.organic / totalCh) * 100) : 0;
+          const paidPct = totalCh > 0 ? Math.round((cm.paid / totalCh) * 100) : 0;
+          const brandScore = result.insights?.growth_score ?? synthetic?.domain_overview?.authority_score ?? 0;
+          const avgSuccess = result.campaigns?.length ? Math.round(result.campaigns.reduce((s, c) => s + (c.success_score ?? 0), 0) / result.campaigns.length) : 0;
+          const marketScore = result.insights?.market_position === "leader" ? 8 : result.insights?.market_position === "challenger" ? 5 : result.insights?.market_position === "niche" ? 3 : (result.insights?.growth_score ?? 0);
+          const trafficChartData = trafficTrend.length > 0
+            ? trafficTrend.map((p) => ({
+                month: (p.month ?? p.date ?? "").toString().slice(0, 3),
+                organic: p.organic ?? 0,
+                paid: p.paid ?? 0,
+                total: p.traffic ?? p.value ?? p.total ?? 0,
+              }))
+            : [];
+          const competitorList = (synthetic?.competitors ?? []).map((c) => ({ domain: c.domain, score: c.overlap ?? c.overlap_score ?? 0 }));
+          const strategyPills = (result.insights?.content_strategy_focus ?? "").split(/[,;]/).map((s) => s.trim()).filter(Boolean);
+          return (
+          <motion.div variants={container} initial="hidden" animate="show" className="w-full space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-6">
+              <KPIStatCard title="Brand score" value={brandScore} delta={0} progress={brandScore * 10} />
+              <KPIStatCard title="Organic traffic %" value={`${organicPct}%`} delta={0} progress={organicPct} />
+              <KPIStatCard title="Paid traffic %" value={`${paidPct}%`} delta={0} progress={paidPct} />
+              <KPIStatCard title="Avg campaign success" value={avgSuccess} delta={0} progress={avgSuccess * 10} />
+              <KPIStatCard title="Asset performance" value={assetCount} delta={0} progress={assetCount > 0 ? Math.min(100, assetCount * 20) : 0} />
+            </div>
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+              <div className="xl:col-span-2">
+                <GradientAreaTrafficChart data={trafficChartData} />
+              </div>
+              <ChartsChannelMixDonut organic={cm.organic} paid={cm.paid} social={cm.social} direct={cm.direct} />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              <div className="rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xl p-4 shadow-lg shadow-black/20 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
+                <StackedChannelBar organicPct={organicPct} paidPct={paidPct} otherPct={100 - organicPct - paidPct} />
+              </div>
+              <div className="rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xl p-4 shadow-lg shadow-black/20 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 flex flex-col items-center justify-center">
+                <h3 className="text-sm font-semibold text-slate-300 mb-2">Market position</h3>
+                <RadialScore value={marketScore} max={10} size={64} />
+              </div>
+              <CompetitorBarList competitors={competitorList} />
+              <div className="rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xl p-4 shadow-lg shadow-black/20 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
+                <h3 className="text-sm font-semibold text-slate-300 mb-3">Content strategy</h3>
+                <div className="flex flex-wrap gap-2">
+                  {strategyPills.length > 0 ? strategyPills.map((t) => <InsightPill key={t} text={t} />) : <p className="text-sm text-slate-400">No content strategy data</p>}
                 </div>
               </div>
-              {posterError && <p className="text-sm text-destructive">{posterError}</p>}
-              {videoError && <p className="text-sm text-destructive">{videoError}</p>}
-            </motion.div>
-
-            {/* Section 4: Results */}
-            {(posterOutput ?? videoOutput) && (
-              <motion.div variants={container} className="mb-8 space-y-6">
-                <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                  Results
-                </h2>
-                {posterOutput && (
-                  <Card className="rounded-2xl border border-border/80 bg-card/80 shadow-sm">
-                    <CardHeader className="pb-2">
-                      <h3 className="text-sm font-semibold tracking-tight text-foreground">
-                        Campaign posters
-                      </h3>
-                    </CardHeader>
-                    <CardContent>
-                      {(posterOutput.adImages?.length ?? 0) > 0 ? (
-                        <>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {posterOutput.adImages.map((img) => (
-                              <div
-                                key={img.type}
-                                className="rounded-lg overflow-hidden border border-border/60"
-                              >
-                                <a href={img.url} target="_blank" rel="noreferrer" className="block">
-                                  <img
-                                    src={img.url}
-                                    alt={AD_TYPE_LABELS[img.type] ?? img.type}
-                                    className="w-full h-auto object-cover max-h-48"
-                                  />
-                                </a>
-                                <p className="p-2 text-xs text-muted-foreground">
-                                  {AD_TYPE_LABELS[img.type] ?? img.type}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                          {posterOutput.brief?.campaignConcept && (
-                            <p className="mt-3 text-sm text-muted-foreground">
-                              {posterOutput.brief.campaignConcept}
-                            </p>
-                          )}
-                        </>
-                      ) : (
-                        <p className="text-sm text-destructive">
-                          {posterOutput.posterError ?? posterOutput.videoError ?? "Posters could not be generated. Check server logs or try again."}
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
+            </div>
+            <div>
+              <h2 className="text-xs uppercase tracking-widest text-slate-400 mb-4">Asset performance</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {videoOutput?.videoUrl && (
+                  <AssetPerformanceCard type="video" src={videoOutput.videoUrl} label="Latest video" onRegenerate={handleGenerateVideo} isRegenerating={videoLoading} />
                 )}
-                {videoOutput && (videoOutput.videoUrl ?? videoOutput.videoError) && (
-                  <Card className="rounded-2xl border border-border/80 bg-card/80 shadow-sm">
-                    <CardHeader className="pb-2">
-                      <h3 className="text-sm font-semibold tracking-tight text-foreground">
-                        Campaign video
-                      </h3>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {videoOutput.videoUrl ? (
-                        <div className="rounded-lg overflow-hidden bg-black/90 max-w-2xl">
-                          <video
-                            src={videoOutput.videoUrl}
-                            controls
-                            className="w-full aspect-video"
-                            playsInline
-                          >
-                            Your browser does not support the video tag.
-                          </video>
-                          <a
-                            href={videoOutput.videoUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-block mt-2 text-sm text-primary hover:underline"
-                          >
-                            Open video in new tab
-                          </a>
-                        </div>
-                      ) : (
-                        videoOutput.videoError && (
-                          <p className="text-sm text-destructive">{videoOutput.videoError}</p>
-                        )
-                      )}
-                      {videoOutput.brief?.campaignConcept && (
-                        <p className="text-sm text-muted-foreground">
-                          {videoOutput.brief.campaignConcept}
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
+                {(posterOutput?.adImages?.length ?? 0) > 0 && posterOutput!.adImages!.slice(0, 2).map((img) => (
+                  <AssetPerformanceCard key={img.type} type="image" src={img.url} label={AD_TYPE_LABELS[img.type] ?? img.type} onRegenerate={handleGeneratePosters} isRegenerating={posterLoading} />
+                ))}
+                {!videoOutput?.videoUrl && !(posterOutput?.adImages?.length) && (
+                  <div className="col-span-full flex flex-col items-center justify-center py-16 px-4 rounded-2xl bg-white/5 border border-white/10">
+                    <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center mb-4">
+                      <ImageIcon className="w-7 h-7 text-slate-400" />
+                    </div>
+                    <p className="text-sm font-medium text-slate-300 mb-4">No assets generated yet</p>
+                    <button type="button" onClick={() => setAssetStudioOpen(true)} className="btn-gradient px-5 py-2.5 rounded-xl font-medium text-white shadow-lg hover:shadow-xl transition-all">Generate Asset</button>
+                  </div>
                 )}
-              </motion.div>
-            )}
-
-            {trafficTrend.length > 0 && (
-              <div className="mb-6">
-                <TrafficTrendChart data={trafficTrend} />
               </div>
-            )}
+            </div>
+            <div>
+              <h2 className="text-xs uppercase tracking-widest text-slate-400 mb-4">Campaigns</h2>
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                {result.campaigns.map((c, i) => (
+                  <DashboardCampaignCard key={c.campaign_name + i} campaign={c} isSelected={selectedCampaign?.campaign_name === c.campaign_name} onClick={() => setSelectedCampaign(c)} index={i} />
+                ))}
+              </div>
+            </div>
+          </motion.div>
+          );
+        })()}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full">
-              <motion.div variants={container} className="space-y-4">
-                <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                  Campaigns
-                </h2>
+        {!loading && result && activeSection === "asset-studio" && (
+          <div className="card-analytics p-8 max-w-md">
+            <h2 className="text-lg font-semibold text-white mb-2">Asset Studio</h2>
+            <p className="text-sm text-slate-400 mb-4">Generate campaign posters or video from your campaign brief.</p>
+            <button type="button" onClick={() => setAssetStudioOpen(true)} className="btn-gradient px-4 py-2 rounded-xl font-medium text-white">Open Asset Studio</button>
+          </div>
+        )}
+
+        {!loading && result && activeSection === "campaigns" && (
+          <motion.div variants={container} initial="hidden" animate="show" className="w-full">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="space-y-4">
+                <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Campaigns</h2>
                 <div className="space-y-3">
                   {result.campaigns.map((campaign, i) => (
-                    <CampaignCard
+                    <LegacyCampaignCard
                       key={campaign.campaign_name + i}
                       campaign={campaign}
-                      isSelected={
-                        selectedCampaign?.campaign_name === campaign.campaign_name
-                      }
+                      isSelected={selectedCampaign?.campaign_name === campaign.campaign_name}
                       onClick={() => setSelectedCampaign(campaign)}
                       index={i}
                     />
                   ))}
                 </div>
-              </motion.div>
-
-              <motion.div variants={container} className="space-y-4">
-                <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                  Campaign detail
-                </h2>
-                <CampaignDetail
-                  campaign={selectedCampaign}
-                  brandName={result.brand_overview.name}
-                />
-                {result.campaign_timeline != null &&
-                  result.campaign_timeline.length > 0 && (
-                    <CampaignTimelineSection events={result.campaign_timeline} />
-                  )}
-                {result.youtube_creatives != null &&
-                  result.youtube_creatives.length > 0 && (
-                    <YouTubeCreativesCard creatives={result.youtube_creatives} />
-                  )}
-              </motion.div>
-
-              <motion.div
-                variants={container}
-                className="space-y-4 lg:sticky lg:top-24 lg:self-start"
-              >
-                <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                  Insights
-                </h2>
-                {maturity != null && <MaturityCard level={maturity} />}
-                {channelMix != null && (
-                  <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-                    <h3 className="text-sm font-medium text-muted-foreground mb-3">
-                      Channel mix
-                    </h3>
-                    <ChannelMixDonut channelMix={channelMix} />
-                  </div>
+              </div>
+              <div className="space-y-6">
+                <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Campaign detail</h2>
+                <CampaignDetail campaign={selectedCampaign} brandName={result.brand_overview.name} />
+                {result.campaign_timeline != null && result.campaign_timeline.length > 0 && (
+                  <CampaignTimelineSection events={result.campaign_timeline} />
                 )}
-                <GeoOpportunityCard insights={result.insights} />
-                <StrategicRecommendationCard insights={result.insights} />
-                <InsightCard insights={result.insights} index={0} />
-              </motion.div>
+                {result.youtube_creatives != null && result.youtube_creatives.length > 0 && (
+                  <YouTubeCreativesCard creatives={result.youtube_creatives} />
+                )}
+              </div>
             </div>
           </motion.div>
         )}
 
+        {!loading && result && activeSection === "assets-library" && (
+          <motion.div variants={container} initial="hidden" animate="show" className="w-full space-y-10">
+            <section>
+              <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-4">Generated images</h2>
+              {(assetHistory[campaignIdForAssets] ?? []).filter((v) => v.mode === "image").length > 0 ? (
+                <AssetVersionStack
+                  versions={(assetHistory[campaignIdForAssets] ?? []).filter((v) => v.mode === "image")}
+                  mode="image"
+                  label="Campaign posters"
+                  campaignApiBase={campaignApiBase}
+                  onRegenerate={() => runCampaignJob("image")}
+                  isRegenerating={posterLoading}
+                  onUpdateVersion={(jobId, update) => updateAssetVersion(campaignIdForAssets, jobId, update)}
+                  imageTypeLabels={AD_TYPE_LABELS}
+                />
+              ) : (
+                <div className="rounded-xl border border-dashed border-border bg-muted/20 p-8 text-center text-muted-foreground card-premium">
+                  <p className="text-sm">No images yet for this campaign. Generate from Overview or open Asset Studio.</p>
+                  <button type="button" onClick={() => { setAssetStudioDefaultMode("image"); setAssetStudioOpen(true); }} className="mt-3 text-sm font-medium text-primary hover:underline">Open Asset Studio</button>
+                </div>
+              )}
+            </section>
+            <section>
+              <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-4">Generated videos</h2>
+              {(assetHistory[campaignIdForAssets] ?? []).filter((v) => v.mode === "video").length > 0 ? (
+                <AssetVersionStack
+                  versions={(assetHistory[campaignIdForAssets] ?? []).filter((v) => v.mode === "video")}
+                  mode="video"
+                  label="Campaign video"
+                  campaignApiBase={campaignApiBase}
+                  onRegenerate={() => runCampaignJob("video")}
+                  isRegenerating={videoLoading}
+                  onUpdateVersion={(jobId, update) => updateAssetVersion(campaignIdForAssets, jobId, update)}
+                />
+              ) : (
+                <div className="rounded-xl border border-dashed border-border bg-muted/20 p-8 text-center text-muted-foreground card-premium">
+                  <p className="text-sm">No video yet for this campaign. Generate from Overview or open Asset Studio.</p>
+                  <button type="button" onClick={() => { setAssetStudioDefaultMode("video"); setAssetStudioOpen(true); }} className="mt-3 text-sm font-medium text-primary hover:underline">Open Asset Studio</button>
+                </div>
+              )}
+            </section>
+          </motion.div>
+        )}
+
+        {!loading && result && activeSection === "insights" && (
+          <motion.div variants={container} initial="hidden" animate="show" className="w-full max-w-2xl space-y-6">
+            <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Insights</h2>
+            {maturity != null && <MaturityCard level={maturity} />}
+            {channelMix != null && (
+              <div className="card-analytics p-5">
+                <h3 className="text-sm font-medium text-white mb-3">Channel mix</h3>
+                <ChannelMixDonut channelMix={channelMix} />
+              </div>
+            )}
+            <GeoOpportunityCard insights={result.insights} />
+            <StrategicRecommendationCard insights={result.insights} />
+            <InsightCard insights={result.insights} index={0} />
+          </motion.div>
+        )}
+
         {!loading && !result && !error && (
-          <div className="flex flex-col items-center justify-center py-24 text-center text-muted-foreground">
-            <p className="text-sm">
+          <div className="flex flex-col items-center justify-center py-24 text-center max-w-md mx-auto px-4">
+            <p className="text-base font-medium text-slate-800 dark:text-slate-200">
               Enter a brand name or domain to run campaign intelligence.
             </p>
-            <p className="text-xs mt-2">e.g. Nike, nike.com, Stripe</p>
+            <p className="text-sm mt-2 text-slate-600 dark:text-slate-400">e.g. Nike, nike.com, Stripe</p>
           </div>
         )}
-      </main>
-    </div>
+      </AppShell>
+
+      <AssetStudioDrawer
+        open={assetStudioOpen}
+        onClose={() => setAssetStudioOpen(false)}
+        campaign={selectedCampaign}
+        defaultMode={assetStudioDefaultMode}
+        onGenerate={handleAssetStudioGenerate}
+        imageStatus={imageStatus}
+        videoStatus={videoStatus}
+        posterProgress={posterProgress}
+        videoProgress={videoProgress}
+        posterError={posterError}
+        videoError={videoError}
+      />
+    </>
   );
 }
