@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
-import { getPrisma } from "@/lib/db/prisma";
+import { prisma } from "@/lib/prisma";
+import type { BrandAnalysisResult } from "@/types/analysis";
 
 type RouteParams = { params: Promise<{ jobId: string }> };
+
+type PollResponse = {
+  status: string;
+  result?: BrandAnalysisResult;
+  error?: string;
+};
 
 /**
  * GET /api/analyze-brand/[jobId]
@@ -14,7 +21,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: "Missing jobId" }, { status: 400 });
     }
 
-    const job = await getPrisma().analysisJob.findUnique({
+    const job = await prisma.analysisJob.findUnique({
       where: { id: jobId },
     });
 
@@ -22,12 +29,12 @@ export async function GET(_request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
-    return NextResponse.json({
-      jobId: job.id,
+    const body: PollResponse = {
       status: job.status,
-      result: job.result ?? undefined,
+      result: (job.result as BrandAnalysisResult | null) ?? undefined,
       error: job.error ?? undefined,
-    });
+    };
+    return NextResponse.json(body);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to get job status";
     return NextResponse.json({ error: message }, { status: 500 });

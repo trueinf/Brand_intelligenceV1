@@ -8,7 +8,7 @@
 
 import { NextResponse } from "next/server";
 import { getBrandKit } from "@/lib/brand-kit/load-brand-kit";
-import { getPrisma } from "@/lib/db/prisma";
+import { prisma } from "@/lib/prisma";
 import type { BrandKit } from "@/lib/brand-kit/brand-kit.types";
 
 export async function GET(request: Request) {
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    await getPrisma().brandKit.upsert({
+    await prisma.brandKit.upsert({
       where: { brandName: kit.brandName.trim() },
       create: {
         brandName: kit.brandName.trim(),

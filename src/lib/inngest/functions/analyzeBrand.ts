@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { inngest } from "@/lib/inngest/client";
-import { getPrisma } from "@/lib/db/prisma";
+import { prisma } from "@/lib/prisma";
 import { executeWorkflow, executeWorkflowFast } from "@/lib/langgraph/workflow";
 import { generateCampaignBrain } from "@/lib/campaign-brain/generateCampaignBrain";
 import { storeCampaignBrain } from "@/lib/campaign-brain-store";
@@ -33,7 +33,7 @@ export const analyzeBrand = inngest.createFunction(
     }
 
     await step.run("mark-processing", async () => {
-      await getPrisma().analysisJob.update({
+      await prisma.analysisJob.update({
         where: { id: jobId },
         data: { status: "processing", updatedAt: new Date() },
       });
@@ -48,7 +48,7 @@ export const analyzeBrand = inngest.createFunction(
 
     if (!outcome.success) {
       await step.run("save-failed", async () => {
-        await getPrisma().analysisJob.update({
+        await prisma.analysisJob.update({
           where: { id: jobId },
           data: {
             status: "failed",
@@ -83,7 +83,7 @@ export const analyzeBrand = inngest.createFunction(
     }
 
     await step.run("save-result", async () => {
-      await getPrisma().analysisJob.update({
+      await prisma.analysisJob.update({
         where: { id: jobId },
         data: {
           status: "completed",

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { BrandKit } from "@/lib/brand-kit/brand-kit.types";
-import { DEFAULT_BRAND_KITS } from "@/lib/brand-kit/load-brand-kit";
+import { DEFAULT_BRAND_KITS } from "@/lib/brand-kit/default-kits";
 import { Save, Upload, Loader2 } from "lucide-react";
 
 const FONT_OPTIONS = [

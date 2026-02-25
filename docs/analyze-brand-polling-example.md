@@ -1,23 +1,25 @@
 # Analyze Brand — Async Job & Polling
 
-POST `/api/analyze-brand` returns immediately with `{ jobId, status: "pending" }`. Poll GET `/api/analyze-brand/[jobId]` until `status` is `completed` or `failed`, then use `result` or `error`.
+1. Call **POST /api/analyze-brand** with `{ brand }`.
+2. Poll **GET /api/analyze-brand/{jobId}** until `status === "completed"` (or `"failed"`).
+3. Use `result` when completed, or `error` when failed.
 
-## Example: Frontend polling snippet
+## Frontend integration example
 
 ```ts
-import type { AnalyzeBrandResponse } from "@/types";
+import type { BrandAnalysisResult } from "@/types/analysis";
 
 type PollResponse = {
-  jobId: string;
-  status: "pending" | "processing" | "completed" | "failed";
-  result?: AnalyzeBrandResponse;
+  status: string;
+  result?: BrandAnalysisResult;
   error?: string;
 };
 
 async function analyzeBrandAndWait(brand: string): Promise<{
-  result?: AnalyzeBrandResponse;
+  result?: BrandAnalysisResult;
   error?: string;
 }> {
+  // 1. Start job
   const res = await fetch("/api/analyze-brand", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -30,9 +32,10 @@ async function analyzeBrandAndWait(brand: string): Promise<{
   const { jobId, status } = (await res.json()) as { jobId: string; status: string };
   if (status !== "pending" || !jobId) return { error: "Invalid response" };
 
+  // 2. Poll until completed
   const poll = async (): Promise<PollResponse> => {
     const r = await fetch(`/api/analyze-brand/${jobId}`);
-    if (!r.ok) return { jobId, status: "failed", error: r.statusText };
+    if (!r.ok) return { status: "failed", error: r.statusText };
     return r.json() as Promise<PollResponse>;
   };
 
@@ -48,5 +51,5 @@ async function analyzeBrandAndWait(brand: string): Promise<{
 
 ## Netlify
 
-- Set `INNGEST_SIGNING_KEY` and `INNGEST_EVENT_KEY` in Netlify env.
+- Set `DATABASE_URL`, `INNGEST_SIGNING_KEY`, and `INNGEST_EVENT_KEY` in Netlify env.
 - Point Inngest Cloud to your deployed base URL; the serve handler is at `/api/inngest`.

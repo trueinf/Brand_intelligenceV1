@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getPrisma } from "@/lib/db/prisma";
+import { prisma } from "@/lib/prisma";
 import { inngest } from "@/lib/inngest/client";
 
 export const maxDuration = 10;
@@ -21,7 +21,6 @@ export async function POST(request: Request) {
     }
 
     const userId = request.headers.get("x-user-id") ?? null;
-    const prisma = getPrisma();
     const job = await prisma.analysisJob.create({
       data: { brand, userId, status: "pending" },
     });
