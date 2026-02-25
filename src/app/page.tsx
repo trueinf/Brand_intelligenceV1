@@ -168,7 +168,7 @@ export default function Home() {
         setError("Analysis is taking longer than expected. Try again.");
         return;
       }
-      if (data && typeof data === "object" && Array.isArray((data as AnalyzeBrandResponse).campaigns)) {
+      if (data && typeof data === "object" && Array.isArray((data as unknown as AnalyzeBrandResponse).campaigns)) {
         const resultData = data as unknown as AnalyzeBrandResponse;
         setResult(resultData);
         if (resultData.campaignBrainId) setAnalyzeCampaignBrainId(resultData.campaignBrainId);
