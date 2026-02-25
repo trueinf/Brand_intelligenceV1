@@ -1,12 +1,12 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { getDatabaseUrl } from "@/lib/db/database-url";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-const connectionString =
-  process.env.DATABASE_URL ?? "postgresql://localhost:5432/brand_intelligence";
+const connectionString = getDatabaseUrl();
 const adapter = new PrismaPg({ connectionString });
 
 export const prisma =

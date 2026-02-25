@@ -26,6 +26,7 @@ Phase-2 AI SaaS: **dynamic synthetic marketing intelligence** powered by real br
 
    ```env
    OPENAI_API_KEY=sk-proj-...
+   DATABASE_URL=postgresql://...   # Required for Prisma and async jobs (see Neon setup below)
    ```
 
    Optional (brand-aware enrichment and creatives):
@@ -35,13 +36,45 @@ Phase-2 AI SaaS: **dynamic synthetic marketing intelligence** powered by real br
    SERPAPI_KEY=...        # YouTube creatives + Google Trends interest over time
    ```
 
-   Optional (analysis history):
-
-   ```env
-   DATABASE_URL=postgresql://user:pass@localhost:5432/brand_intelligence
-   ```
+   **Database:** Use a hosted PostgreSQL (e.g. [Neon](#neon-setup)) for local dev and production. The app uses `process.env.DATABASE_URL` only (no hardcoded URLs). On Netlify, the app throws if `DATABASE_URL` is missing or points to localhost.
 
 3. **Open** [http://localhost:3000](http://localhost:3000), enter a brand or domain (e.g. `Stripe`, `nike.com`), and click **Analyze**.
+
+---
+
+## Neon setup
+
+1. Create a project at [neon.tech](https://neon.tech) and create a database.
+2. Copy the connection string (e.g. `postgresql://user:pass@ep-xxx-pooler.region.aws.neon.tech/neondb?sslmode=require`).
+3. **Local:** Add to `.env`:
+   ```env
+   DATABASE_URL=postgresql://neondb_owner:xxx@ep-xxx-pooler.region.aws.neon.tech/neondb?sslmode=require
+   ```
+4. Run migrations:
+   ```bash
+   npx prisma db push
+   # or
+   npx prisma migrate deploy
+   ```
+5. **Production:** Set the same `DATABASE_URL` in Netlify (see below). Do not use a localhost URL in production.
+
+---
+
+## Netlify environment variables
+
+Set these in **Site settings → Environment variables** (or in `netlify.toml` / Netlify UI):
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | PostgreSQL connection string (e.g. Neon). Must not be localhost in production. |
+| `INNGEST_SIGNING_KEY` | Yes (if using Inngest) | From [Inngest Cloud](https://app.inngest.com); used to verify webhooks. |
+| `INNGEST_EVENT_KEY` | Yes (if using Inngest) | From Inngest Cloud; used to send events. |
+| `OPENAI_API_KEY` | Yes | For LLM and synthetic data. |
+| `FAST_ANALYSIS` | Optional | Set to `true` to use the fast analysis path (e.g. on Netlify). |
+| `CLEARBIT_API_KEY` | Optional | Company enrichment. |
+| `SERPAPI_KEY` | Optional | YouTube creatives, Google Trends. |
+
+After adding or changing variables, trigger a new deploy so the build and serverless functions use the updated values.
 
 ## LangGraph Flow (Phase-2)
 

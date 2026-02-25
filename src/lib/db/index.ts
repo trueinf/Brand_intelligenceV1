@@ -7,12 +7,10 @@ import postgres from "postgres";
 import { analyses } from "./schema";
 import type { AnalyzeBrandResponse } from "@/types";
 
-const connectionString = process.env.DATABASE_URL;
+import { getDatabaseUrl } from "./database-url";
 
 function getDb() {
-  if (!connectionString) {
-    throw new Error("DATABASE_URL is not set");
-  }
+  const connectionString = getDatabaseUrl();
   return drizzle(postgres(connectionString, { max: 1 }));
 }
 
