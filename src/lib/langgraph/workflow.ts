@@ -82,9 +82,12 @@ export async function executeWorkflowFast(
     const do_ = mock.domain_overview;
     const totalTraffic = (do_.organicTraffic ?? 0) + (do_.paidTraffic ?? 0) || 1;
     const organicPct = (do_.organicTraffic ?? 0) / totalTraffic;
+    // Channel mix sums to 100; organic+paid from traffic ratio, social/direct fixed
+    const organic = Math.round(organicPct * 82);
+    const paid = 82 - organic;
     const channel_mix = {
-      organic: Math.round(organicPct * 82),
-      paid: Math.round((1 - organicPct) * 82),
+      organic,
+      paid,
       social: 10,
       direct: 8,
     };
