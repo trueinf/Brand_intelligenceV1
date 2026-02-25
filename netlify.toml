@@ -4,11 +4,6 @@
 [build]
   command = "npm run build"
 
-# Serverless function timeout (default 10s; max 26s on Netlify).
-# analyze-brand runs 2 LLM calls and can exceed 10s.
-[functions]
-  timeout = 26
-
 # Build-time env
 [build.environment]
   FAST_ANALYSIS = "true"
