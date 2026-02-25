@@ -4,14 +4,23 @@ import { generateCampaignBrain } from "@/lib/campaign-brain/generateCampaignBrai
 import { storeCampaignBrain } from "@/lib/campaign-brain-store";
 
 const BRAIN_RACE_MS = 8000;
+/** Abort workflow after this ms so we return 503 instead of connection reset (e.g. Netlify proxy). */
+const WORKFLOW_TIMEOUT_MS = 55_000;
+
+function isNetlify(): boolean {
+  return (
+    process.env.NETLIFY === "true" ||
+    typeof process.env.NETLIFY_SITE_NAME === "string" ||
+    (typeof process.env.URL === "string" && process.env.URL.includes("netlify.app"))
+  );
+}
 
 /**
  * POST /api/analyze-brand
  * Body: { brand: string }
  * Returns: { brand_overview, campaigns, insights, traffic_trend?, synthetic_data?, campaignBrainId? } or { error: string }
  *
- * Default: full workflow with synthetic traffic_trend. Set ENABLE_GOOGLE_TRENDS=true
- * and SERPAPI_KEY to use real Google Trends for traffic_trend.
+ * On Netlify we always use the fast path (mock + 2 LLM calls) to avoid timeouts.
  */
 export const maxDuration = 60;
 
@@ -26,16 +35,32 @@ export async function POST(request: Request) {
       );
     }
 
-    const useFast = process.env.FAST_ANALYSIS === "true";
-    const outcome = useFast ? await executeWorkflowFast(brand) : await executeWorkflow(brand);
+    const useFast = process.env.FAST_ANALYSIS === "true" || isNetlify();
+    const workflowPromise = useFast ? executeWorkflowFast(brand) : executeWorkflow(brand);
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("WORKFLOW_TIMEOUT")), WORKFLOW_TIMEOUT_MS)
+    );
+    let outcome;
+    try {
+      outcome = await Promise.race([workflowPromise, timeoutPromise]);
+    } catch (err) {
+      if (err instanceof Error && err.message === "WORKFLOW_TIMEOUT") {
+        return NextResponse.json(
+          { error: "Analysis took too long. Please try again or use a shorter brand name." },
+          { status: 503 }
+        );
+      }
+      throw err;
+    }
     if (!outcome.success) {
       return NextResponse.json({ error: outcome.error }, { status: 422 });
     }
 
+    const brainRaceMs = isNetlify() ? 3000 : BRAIN_RACE_MS;
     const brainPromise = generateCampaignBrain(outcome.data);
     const brain = await Promise.race([
       brainPromise,
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), BRAIN_RACE_MS)),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), brainRaceMs)),
     ]);
 
     const response: typeof outcome.data & { campaignBrainId?: string } = { ...outcome.data };
