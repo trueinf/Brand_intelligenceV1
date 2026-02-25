@@ -125,7 +125,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ brand: brandInput }),
       });
-      let data: AnalyzeBrandResponse & { error?: string };
+      let data: { jobId?: string; status?: string; error?: string; result?: AnalyzeBrandResponse } & Record<string, unknown>;
       try {
         data = await res.json();
       } catch {
@@ -140,10 +140,41 @@ export default function Home() {
         setError(data.error ?? "Analysis failed");
         return;
       }
-      setResult(data as AnalyzeBrandResponse);
-      if (data.campaignBrainId) setAnalyzeCampaignBrainId(data.campaignBrainId);
-      if (data.campaigns?.length > 0) {
-        setSelectedCampaign(data.campaigns[0]);
+      const jobId = data.jobId;
+      const status = data.status;
+      if (status === "pending" && jobId) {
+        for (let i = 0; i < 120; i++) {
+          const pollRes = await fetch(`/api/analyze-brand/${jobId}`, { cache: "no-store" });
+          const pollData = (await pollRes.json().catch(() => ({}))) as {
+            status?: string;
+            result?: AnalyzeBrandResponse;
+            error?: string;
+          };
+          if (pollData.status === "completed" && pollData.result) {
+            const resultData = pollData.result;
+            setResult(resultData);
+            if (resultData.campaignBrainId) setAnalyzeCampaignBrainId(resultData.campaignBrainId);
+            if (resultData.campaigns?.length > 0) {
+              setSelectedCampaign(resultData.campaigns[0]);
+            }
+            return;
+          }
+          if (pollData.status === "failed") {
+            setError(pollData.error ?? "Analysis failed");
+            return;
+          }
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+        setError("Analysis is taking longer than expected. Try again.");
+        return;
+      }
+      if (data && typeof data === "object" && Array.isArray((data as AnalyzeBrandResponse).campaigns)) {
+        const resultData = data as unknown as AnalyzeBrandResponse;
+        setResult(resultData);
+        if (resultData.campaignBrainId) setAnalyzeCampaignBrainId(resultData.campaignBrainId);
+        if (resultData.campaigns?.length > 0) setSelectedCampaign(resultData.campaigns[0]);
+      } else {
+        setError("Invalid response. Try again.");
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Request failed");
@@ -454,7 +485,7 @@ export default function Home() {
             <div>
               <h2 className="text-xs uppercase tracking-widest text-slate-400 mb-4">Campaigns</h2>
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                {result.campaigns.map((c, i) => (
+                {(result.campaigns ?? []).map((c, i) => (
                   <DashboardCampaignCard key={c.campaign_name + i} campaign={c} isSelected={selectedCampaign?.campaign_name === c.campaign_name} onClick={() => setSelectedCampaign(c)} index={i} />
                 ))}
               </div>
@@ -477,7 +508,7 @@ export default function Home() {
               <div className="space-y-4">
                 <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Campaigns</h2>
                 <div className="space-y-3">
-                  {result.campaigns.map((campaign, i) => (
+                  {(result.campaigns ?? []).map((campaign, i) => (
                     <LegacyCampaignCard
                       key={campaign.campaign_name + i}
                       campaign={campaign}
