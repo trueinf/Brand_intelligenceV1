@@ -5,7 +5,7 @@ import { storeCampaignBrain } from "@/lib/campaign-brain-store";
 
 const BRAIN_RACE_MS = 8000;
 /** Netlify's gateway often times out at ~30s; return 503 before that so client gets JSON instead of 504. */
-const WORKFLOW_TIMEOUT_MS_NETLIFY = 25_000;
+const WORKFLOW_TIMEOUT_MS_NETLIFY = 28_000;
 const WORKFLOW_TIMEOUT_MS_DEFAULT = 55_000;
 
 function isNetlify(): boolean {
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     } catch (err) {
       if (err instanceof Error && err.message === "WORKFLOW_TIMEOUT") {
         return NextResponse.json(
-          { error: "Analysis timed out. Please try again; the request was cancelled to avoid a server timeout." },
+          { error: "Analysis took too long. Click Analyze again—retries often succeed." },
           { status: 503 }
         );
       }
