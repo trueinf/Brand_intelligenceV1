@@ -240,6 +240,12 @@ export interface AnalyzeBrandResponse {
   campaignBrainId?: string;
 }
 
+/** Result stored in AnalysisJob.result; matches API response shape. */
+export type BrandAnalysisResult = AnalyzeBrandResponse;
+
+/** AnalysisJob.status values. */
+export type AnalysisJobStatus = "pending" | "processing" | "completed" | "failed";
+
 // ---------- Video generation (strategy video) ----------
 
 export interface VideoScene {

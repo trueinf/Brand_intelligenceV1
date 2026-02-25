@@ -85,3 +85,14 @@ model GeneratedVideo {
 
   @@index([brandId])
 }
+
+model AnalysisJob {
+  id        String   @id @default(cuid())
+  brand     String
+  userId    String?
+  status    String   // pending | processing | completed | failed
+  result    Json?
+  error     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
