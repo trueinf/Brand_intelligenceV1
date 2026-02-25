@@ -112,7 +112,7 @@ export function AssetStudioDrawer({
 
             <div>
               <p className="text-sm font-medium text-muted-foreground mb-2">Prompt</p>
-              <PrefilledPromptForm campaign={campaign} mode={mode} onChange={setFormState} />
+              <PrefilledPromptForm campaign={campaign} mode={mode} value={formState} onChange={setFormState} />
             </div>
 
             {promptPreview && (

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Download, RefreshCw, Loader2, RotateCcw } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { AssetVersion, CampaignOutput, CampaignJobProgress } from "@/types/campaign";
 
@@ -151,9 +151,9 @@ export function AssetVersionCard({
       </div>
 
       <div className="relative aspect-[4/3] bg-muted/50 flex items-center justify-center overflow-hidden min-h-[160px]">
-        {status === "completed" && mode === "image" && adImages.length > 0 && (
+        {status === "completed" && mode === "image" && (adImages?.length ?? 0) > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 w-full h-full p-1">
-            {adImages.slice(0, 4).map((img) => (
+            {(adImages ?? []).slice(0, 4).map((img) => (
               <a
                 key={img.type}
                 href={img.url}
@@ -206,27 +206,31 @@ export function AssetVersionCard({
       {isDone && status === "completed" && (
         <div className="flex items-center gap-2 p-3 border-t border-border flex-wrap">
           {canDownload && mode === "video" && videoUrl && (
-            <Button variant="outline" size="sm" className="gap-1.5" asChild>
-              <a href={videoUrl} download="campaign-video.mp4" target="_blank" rel="noreferrer">
-                <Download className="h-3.5 w-3.5" />
-                Download
-              </a>
-            </Button>
+            <a
+              href={videoUrl}
+              download="campaign-video.mp4"
+              target="_blank"
+              rel="noreferrer"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5 inline-flex items-center justify-center")}
+            >
+              <Download className="h-3.5 w-3.5" />
+              Download
+            </a>
           )}
-          {canDownload && mode === "image" && adImages.length > 0 && (
+          {canDownload && mode === "image" && (adImages?.length ?? 0) > 0 && (
             <>
-              {adImages.map((img) => (
-                <Button key={img.type} variant="outline" size="sm" className="gap-1.5" asChild>
-                  <a
-                    href={img.url}
-                    download={`${(imageTypeLabels[img.type] ?? img.type).replace(/\s+/g, "-")}.png`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    {(imageTypeLabels[img.type] ?? img.type).slice(0, 12)}
-                  </a>
-                </Button>
+              {(adImages ?? []).map((img) => (
+                <a
+                  key={img.type}
+                  href={img.url}
+                  download={`${(imageTypeLabels?.[img.type] ?? img.type).replace(/\s+/g, "-")}.png`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5 inline-flex items-center justify-center")}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  {(imageTypeLabels?.[img.type] ?? img.type).slice(0, 12)}
+                </a>
               ))}
             </>
           )}

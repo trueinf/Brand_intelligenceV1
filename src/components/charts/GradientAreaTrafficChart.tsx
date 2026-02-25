@@ -44,7 +44,7 @@ export function GradientAreaTrafficChart({ data, className }: GradientAreaTraffi
   const [mode, setMode] = useState<TrafficViewMode>("organic");
   const chartData = useMemo(() => {
     const raw = data?.length ? data : FALLBACK_DATA;
-    return raw.map((d) => normalizePoint(d as Record<string, unknown>));
+    return raw.map((d) => normalizePoint(d as unknown as Record<string, unknown>));
   }, [data]);
 
   const yDomain = useMemo(() => {
@@ -101,7 +101,7 @@ export function GradientAreaTrafficChart({ data, className }: GradientAreaTraffi
             </defs>
             <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "rgba(148,163,184,0.9)", fontSize: 11 }} />
             <YAxis hide domain={yDomain} />
-            <Tooltip contentStyle={{ backgroundColor: "rgba(15,23,42,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px" }} labelStyle={{ color: "rgb(148,163,184)" }} formatter={(val: number) => [val, ""]} />
+            <Tooltip contentStyle={{ backgroundColor: "rgba(15,23,42,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px" }} labelStyle={{ color: "rgb(148,163,184)" }} formatter={(val: number | undefined) => [val ?? 0, ""]} />
             {mode === "organic" && <Area type="monotone" dataKey="organic" stroke="rgb(52 211 153)" fill="url(#area-organic)" strokeWidth={2} />}
             {mode === "paid" && <Area type="monotone" dataKey="paid" stroke="rgb(167 139 250)" fill="url(#area-paid)" strokeWidth={2} />}
           </AreaChart>

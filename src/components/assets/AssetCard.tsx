@@ -1,7 +1,7 @@
 "use client";
 
 import { Download, RefreshCw, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export type AssetStatus = "ready" | "failed" | "generating";
@@ -91,17 +91,16 @@ export function AssetCard(props: AssetCardProps) {
         <p className="text-sm font-medium text-foreground truncate">{label}</p>
         <div className="flex items-center gap-2 flex-wrap">
           {canDownload && (
-            <Button variant="outline" size="sm" className="gap-1.5" asChild>
-              <a
-                href={url!}
-                download={type === "image" ? `${label.replace(/\s+/g, "-")}.png` : "campaign-video.mp4"}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <Download className="h-3.5 w-3.5" />
-                Download
-              </a>
-            </Button>
+            <a
+              href={url!}
+              download={type === "image" ? `${label.replace(/\s+/g, "-")}.png` : "campaign-video.mp4"}
+              target="_blank"
+              rel="noreferrer"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5 inline-flex items-center justify-center")}
+            >
+              <Download className="h-3.5 w-3.5" />
+              Download
+            </a>
           )}
           {onRegenerate && (
             <Button
