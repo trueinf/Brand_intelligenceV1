@@ -4,8 +4,9 @@ import { generateCampaignBrain } from "@/lib/campaign-brain/generateCampaignBrai
 import { storeCampaignBrain } from "@/lib/campaign-brain-store";
 
 const BRAIN_RACE_MS = 8000;
-/** Abort workflow after this ms so we return 503 instead of connection reset (e.g. Netlify proxy). */
-const WORKFLOW_TIMEOUT_MS = 55_000;
+/** Netlify's gateway often times out at ~30s; return 503 before that so client gets JSON instead of 504. */
+const WORKFLOW_TIMEOUT_MS_NETLIFY = 25_000;
+const WORKFLOW_TIMEOUT_MS_DEFAULT = 55_000;
 
 function isNetlify(): boolean {
   return (
@@ -36,9 +37,10 @@ export async function POST(request: Request) {
     }
 
     const useFast = process.env.FAST_ANALYSIS === "true" || isNetlify();
+    const workflowTimeoutMs = isNetlify() ? WORKFLOW_TIMEOUT_MS_NETLIFY : WORKFLOW_TIMEOUT_MS_DEFAULT;
     const workflowPromise = useFast ? executeWorkflowFast(brand) : executeWorkflow(brand);
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("WORKFLOW_TIMEOUT")), WORKFLOW_TIMEOUT_MS)
+      setTimeout(() => reject(new Error("WORKFLOW_TIMEOUT")), workflowTimeoutMs)
     );
     let outcome;
     try {
@@ -46,7 +48,7 @@ export async function POST(request: Request) {
     } catch (err) {
       if (err instanceof Error && err.message === "WORKFLOW_TIMEOUT") {
         return NextResponse.json(
-          { error: "Analysis took too long. Please try again or use a shorter brand name." },
+          { error: "Analysis timed out. Please try again; the request was cancelled to avoid a server timeout." },
           { status: 503 }
         );
       }
