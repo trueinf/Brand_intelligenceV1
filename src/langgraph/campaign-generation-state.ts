@@ -28,6 +28,8 @@ export interface CampaignGenerationInput {
     channel_strategy_summary?: string;
   };
   campaignsSummary?: string;
+  /** When set, strategist uses this as the campaign description (direct Asset Studio flow). */
+  directPrompt?: string;
 }
 
 export type CampaignGenerationMode = "image" | "video" | "both" | "video-fast";

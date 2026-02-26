@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import type { BrandAnalysisResult } from "@/types/analysis";
+import type { AnalyzeBrandResponse } from "@/types";
 
 type RouteParams = { params: Promise<{ jobId: string }> };
 
 type PollResponse = {
   status: string;
-  result?: BrandAnalysisResult;
+  result?: AnalyzeBrandResponse;
   error?: string;
 };
 
@@ -29,9 +29,21 @@ export async function GET(_request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
+    let result: AnalyzeBrandResponse | undefined;
+    const raw = job.result;
+    if (raw != null && typeof raw === "object") {
+      result = raw as AnalyzeBrandResponse;
+    } else if (typeof raw === "string") {
+      try {
+        result = JSON.parse(raw) as AnalyzeBrandResponse;
+      } catch {
+        result = undefined;
+      }
+    }
+
     const body: PollResponse = {
       status: job.status,
-      result: (job.result as BrandAnalysisResult | null) ?? undefined,
+      result,
       error: job.error ?? undefined,
     };
     return NextResponse.json(body);

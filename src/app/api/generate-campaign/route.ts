@@ -19,7 +19,9 @@ const MODES: CampaignGenerationMode[] = ["image", "video"];
 function parseInput(raw: unknown): CampaignGenerationInput | null {
   if (!raw || typeof raw !== "object") return null;
   const b = raw as Record<string, unknown>;
-  const brandName = String(b?.brandName ?? "").trim();
+  const directPrompt = b.directPrompt != null ? String(b.directPrompt).trim() || undefined : undefined;
+  let brandName = String(b?.brandName ?? "").trim();
+  if (!brandName && directPrompt) brandName = "Asset Studio";
   if (!brandName) return null;
   return {
     brandName,
@@ -45,6 +47,7 @@ function parseInput(raw: unknown): CampaignGenerationInput | null {
         ? (b.strategyInsights as CampaignGenerationInput["strategyInsights"])
         : undefined,
     campaignsSummary: b.campaignsSummary != null ? String(b.campaignsSummary) : undefined,
+    directPrompt,
   };
 }
 

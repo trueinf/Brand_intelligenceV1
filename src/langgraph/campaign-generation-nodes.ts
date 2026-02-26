@@ -21,19 +21,7 @@ import type { CampaignGenerationState, CampaignGenerationUpdate } from "./campai
 
 const MODEL = "gpt-4o";
 
-function buildStrategistPrompt(input: CampaignGenerationState["input"]): string {
-  const { brandName, brandOverview, keywordIntelligence, strategyInsights, campaignsSummary } = input ?? {};
-  return `Generate a campaign brief for the following brand intelligence.
-
-Brand: ${brandName}
-${brandOverview?.summary ? `Summary: ${brandOverview.summary}` : ""}
-${strategyInsights?.strategic_summary ? `Strategy: ${strategyInsights.strategic_summary}` : ""}
-${strategyInsights?.market_position ? `Market position: ${strategyInsights.market_position}` : ""}
-${strategyInsights?.growth_score != null ? `Growth score: ${strategyInsights.growth_score}` : ""}
-${keywordIntelligence?.coreKeywords?.length ? `Core keywords: ${keywordIntelligence.coreKeywords.join(", ")}` : ""}
-${campaignsSummary ? `Campaigns context: ${campaignsSummary}` : ""}
-
-Return ONLY valid JSON with this exact structure (no markdown, no code fence):
+const BRIEF_JSON_SCHEMA = `Return ONLY valid JSON with this exact structure (no markdown, no code fence):
 {
   "objective": "string",
   "targetAudience": "string",
@@ -46,6 +34,29 @@ Return ONLY valid JSON with this exact structure (no markdown, no code fence):
   "callToAction": "string",
   "campaignConcept": "string"
 }`;
+
+function buildStrategistPrompt(input: CampaignGenerationState["input"]): string {
+  const { brandName, brandOverview, keywordIntelligence, strategyInsights, campaignsSummary, directPrompt } =
+    input ?? {};
+  if (directPrompt?.trim()) {
+    return `The user has provided this campaign description. Turn it into a structured campaign brief.
+
+Campaign description:
+${directPrompt.trim()}
+
+${BRIEF_JSON_SCHEMA}`;
+  }
+  return `Generate a campaign brief for the following brand intelligence.
+
+Brand: ${brandName}
+${brandOverview?.summary ? `Summary: ${brandOverview.summary}` : ""}
+${strategyInsights?.strategic_summary ? `Strategy: ${strategyInsights.strategic_summary}` : ""}
+${strategyInsights?.market_position ? `Market position: ${strategyInsights.market_position}` : ""}
+${strategyInsights?.growth_score != null ? `Growth score: ${strategyInsights.growth_score}` : ""}
+${keywordIntelligence?.coreKeywords?.length ? `Core keywords: ${keywordIntelligence.coreKeywords.join(", ")}` : ""}
+${campaignsSummary ? `Campaigns context: ${campaignsSummary}` : ""}
+
+${BRIEF_JSON_SCHEMA}`;
 }
 
 export async function campaignStrategistNode(

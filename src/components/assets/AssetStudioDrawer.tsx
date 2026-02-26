@@ -5,37 +5,23 @@ import { X, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GenerationModeToggle, type AssetGenerationMode } from "./GenerationModeToggle";
 import { PrefilledPromptForm } from "./PrefilledPromptForm";
-import { type AssetPromptFormState, defaultAssetPromptFormState } from "./AssetPromptFormState";
+import {
+  type AssetPromptFormState,
+  defaultAssetPromptFormState,
+  buildAssetPrompt,
+  hasDirectPrompt,
+} from "./AssetPromptFormState";
 import type { Campaign } from "@/types";
 import type { CampaignJobProgress } from "@/types/campaign";
 
 export type AssetJobStatus = "idle" | "generating" | "completed" | "failed";
-
-function buildPrompt(form: AssetPromptFormState, mode: AssetGenerationMode): string {
-  const parts: string[] = [];
-  if (mode === "video") {
-    parts.push(`Create a premium social media video${form.offer ? ` for ${form.offer}` : ""}.`);
-  } else {
-    parts.push(`Create campaign posters${form.offer ? ` for ${form.offer}` : ""}.`);
-  }
-  if (form.goal) parts.push(`Goal: ${form.goal}.`);
-  if (form.audience) parts.push(`Audience: ${form.audience}.`);
-  if (form.channel) parts.push(`Channel: ${form.channel}.`);
-  if (form.offer) parts.push(`Offer: ${form.offer}.`);
-  if (form.tone) parts.push(`Tone: ${form.tone}.`);
-  if (form.cta) parts.push(`Include CTA: ${form.cta}.`);
-  if (mode === "video" && form.durationSeconds) {
-    parts.push(`Duration: ${form.durationSeconds} seconds.`);
-  }
-  return parts.join(" ");
-}
 
 interface AssetStudioDrawerProps {
   open: boolean;
   onClose: () => void;
   campaign: Campaign | null;
   defaultMode: AssetGenerationMode;
-  onGenerate: (mode: AssetGenerationMode) => void;
+  onGenerate: (mode: AssetGenerationMode, formState?: AssetPromptFormState) => void;
   imageStatus: AssetJobStatus;
   videoStatus: AssetJobStatus;
   posterProgress?: CampaignJobProgress | null;
@@ -69,12 +55,12 @@ export function AssetStudioDrawer({
   const error = mode === "image" ? posterError : videoError;
 
   const handleGenerate = useCallback(() => {
-    onGenerate(mode);
-  }, [mode, onGenerate]);
+    onGenerate(mode, formState);
+  }, [mode, formState, onGenerate]);
 
-  const promptPreview = buildPrompt(formState, mode);
+  const promptPreview = buildAssetPrompt(formState, mode);
   const isGenerating = status === "generating";
-  const canGenerate = !isGenerating && campaign != null;
+  const canGenerate = !isGenerating && (campaign != null || hasDirectPrompt(formState));
 
   return (
     <>

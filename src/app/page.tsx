@@ -26,6 +26,11 @@ import type { AnalyzeBrandResponse, Campaign } from "@/types";
 import type { CampaignOutput, CampaignJobProgress, AssetVersion } from "@/types/campaign";
 import { mapAnalyzeToCampaignInput } from "@/lib/mapAnalyzeToCampaignInput";
 import { AssetStudioDrawer, type AssetJobStatus } from "@/components/assets/AssetStudioDrawer";
+import {
+  buildAssetPrompt,
+  hasDirectPrompt,
+  type AssetPromptFormState,
+} from "@/components/assets/AssetPromptFormState";
 import { AssetVersionStack } from "@/components/assets/AssetVersionStack";
 import { AppShell, type AppSection } from "@/components/layout/AppShell";
 import { ImageIcon } from "lucide-react";
@@ -150,20 +155,28 @@ export default function Home() {
             result?: AnalyzeBrandResponse;
             error?: string;
           };
-          if (pollData.status === "completed" && pollData.result) {
-            const resultData = pollData.result;
-            setResult(resultData);
-            if (resultData.campaignBrainId) setAnalyzeCampaignBrainId(resultData.campaignBrainId);
-            if (resultData.campaigns?.length > 0) {
-              setSelectedCampaign(resultData.campaigns[0]);
+          if (!pollRes.ok) {
+            setError((pollData as { error?: string }).error ?? `Request failed (${pollRes.status})`);
+            return;
+          }
+          if (pollData.status === "completed") {
+            if (pollData.result && typeof pollData.result === "object") {
+              const resultData = pollData.result;
+              setResult(resultData);
+              if (resultData.campaignBrainId) setAnalyzeCampaignBrainId(resultData.campaignBrainId);
+              if (resultData.campaigns?.length > 0) {
+                setSelectedCampaign(resultData.campaigns[0]);
+              }
+              return;
             }
+            setError("Analysis completed but no data was returned. Try again.");
             return;
           }
           if (pollData.status === "failed") {
             setError(pollData.error ?? "Analysis failed");
             return;
           }
-          await new Promise((r) => setTimeout(r, 2000));
+          await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
         }
         setError("Analysis is taking longer than expected. Try again.");
         return;
@@ -184,14 +197,14 @@ export default function Home() {
   }, []);
 
   const runCampaignJob = useCallback(
-    async (mode: "image" | "video") => {
-      if (!result) return;
-      const input = mapAnalyzeToCampaignInput(result);
-      if (!input.brandName) {
-        if (mode === "image") setPosterError("Brand name missing");
-        else setVideoError("Brand name missing");
+    async (mode: "image" | "video", directInput?: { brandName: string; directPrompt: string }) => {
+      const input = directInput ?? (result ? mapAnalyzeToCampaignInput(result) : null);
+      if (!input?.brandName && !directInput?.directPrompt) {
+        if (mode === "image") setPosterError("Run brand analysis first or fill in Goal/Offer in Asset Studio.");
+        else setVideoError("Run brand analysis first or fill in Goal/Offer in Asset Studio.");
         return;
       }
+      const campaignId = directInput ? "direct" : (selectedCampaign?.campaign_name ?? "default");
       const setLoadingState = mode === "image" ? setPosterLoading : setVideoLoading;
       const setOutput = mode === "image" ? setPosterOutput : setVideoOutput;
       const setJobError = mode === "image" ? setPosterError : setVideoError;
@@ -206,8 +219,8 @@ export default function Home() {
       setVideoError(null);
       setPosterProgress(null);
       setVideoProgress(null);
-      const campaignBrainId = analyzeCampaignBrainId ?? campaignBrainJobId;
-      const useFastVideo = mode === "video" && campaignBrainId != null;
+      const campaignBrainId = directInput ? null : (analyzeCampaignBrainId ?? campaignBrainJobId);
+      const useFastVideo = !directInput && mode === "video" && campaignBrainId != null;
       const requestBody = useFastVideo
         ? { input: { ...input, campaignBrainId }, mode: "video-fast" as const }
         : { input, mode };
@@ -232,7 +245,6 @@ export default function Home() {
           setLoadingState(false);
           return;
         }
-        const campaignId = selectedCampaign?.campaign_name ?? "default";
         setAssetHistory((prev) => {
           const list = prev[campaignId] ?? [];
           const previousVersions = list.filter((v) => v.mode === mode);
@@ -366,6 +378,26 @@ export default function Home() {
     [result, campaignApiBase, analyzeCampaignBrainId, campaignBrainJobId, selectedCampaign]
   );
 
+  const handleAssetStudioGenerate = useCallback(
+    (mode: "image" | "video", formState?: AssetPromptFormState) => {
+      if (result) {
+        runCampaignJob(mode);
+        return;
+      }
+      if (formState && hasDirectPrompt(formState)) {
+        const brandName = formState.goal?.trim() || formState.offer?.trim() || "Asset Studio";
+        runCampaignJob(mode, {
+          brandName,
+          directPrompt: buildAssetPrompt(formState, mode),
+        });
+        return;
+      }
+      const setJobError = mode === "image" ? setPosterError : setVideoError;
+      setJobError("Run brand analysis first or fill in Goal, Audience, or Offer in Asset Studio.");
+    },
+    [result, runCampaignJob]
+  );
+
   const handleGeneratePosters = useCallback(() => {
     setAssetStudioDefaultMode("image");
     setAssetStudioOpen(true);
@@ -374,12 +406,10 @@ export default function Home() {
     setAssetStudioDefaultMode("video");
     setAssetStudioOpen(true);
   }, []);
-  const handleAssetStudioGenerate = useCallback(
-    (mode: "image" | "video") => runCampaignJob(mode),
-    [runCampaignJob]
-  );
 
-  const campaignIdForAssets = selectedCampaign?.campaign_name ?? "default";
+  const campaignIdForAssets =
+    selectedCampaign?.campaign_name ??
+    (Object.keys(assetHistory).includes("direct") ? "direct" : "default");
   const updateAssetVersion = useCallback(
     (cid: string, jobId: string, update: Partial<AssetVersion>) => {
       setAssetHistory((prev) => ({
