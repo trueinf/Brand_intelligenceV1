@@ -579,7 +579,7 @@ export default function Home() {
           </motion.div>
         )}
 
-        {!loading && result && activeSection === "assets-library" && (
+        {!loading && activeSection === "assets-library" && (result || Object.keys(assetHistory).includes("direct")) && (
           <motion.div variants={container} initial="hidden" animate="show" className="w-full space-y-10">
             <section>
               <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-4">Generated images</h2>
@@ -640,12 +640,28 @@ export default function Home() {
         )}
 
         {!loading && !result && !error && (
-          <div className="flex flex-col items-center justify-center py-24 text-center max-w-md mx-auto px-4">
-            <p className="text-base font-medium text-slate-800 dark:text-slate-200">
-              Enter a brand name or domain to run campaign intelligence.
-            </p>
-            <p className="text-sm mt-2 text-slate-600 dark:text-slate-400">e.g. Nike, nike.com, Stripe</p>
-          </div>
+          (videoOutput?.videoUrl || (posterOutput?.adImages?.length ?? 0) > 0) ? (
+            <motion.div variants={container} initial="hidden" animate="show" className="w-full space-y-8">
+              <div>
+                <h2 className="text-xs uppercase tracking-widest text-slate-400 mb-4">Generated from Asset Studio</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {videoOutput?.videoUrl && (
+                    <AssetPerformanceCard type="video" src={videoOutput.videoUrl} label="Latest video" onRegenerate={handleGenerateVideo} isRegenerating={videoLoading} />
+                  )}
+                  {(posterOutput?.adImages?.length ?? 0) > 0 && posterOutput!.adImages!.slice(0, 2).map((img) => (
+                    <AssetPerformanceCard key={img.type} type="image" src={img.url} label={AD_TYPE_LABELS[img.type] ?? img.type} onRegenerate={handleGeneratePosters} isRegenerating={posterLoading} />
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-24 text-center max-w-md mx-auto px-4">
+              <p className="text-base font-medium text-slate-800 dark:text-slate-200">
+                Enter a brand name or domain to run campaign intelligence.
+              </p>
+              <p className="text-sm mt-2 text-slate-600 dark:text-slate-400">e.g. Nike, nike.com, Stripe</p>
+            </div>
+          )
         )}
       </AppShell>
 
