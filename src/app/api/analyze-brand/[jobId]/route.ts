@@ -32,10 +32,10 @@ export async function GET(_request: Request, { params }: RouteParams) {
     let result: AnalyzeBrandResponse | undefined;
     const raw = job.result;
     if (raw != null && typeof raw === "object") {
-      result = raw as AnalyzeBrandResponse;
+      result = raw as unknown as AnalyzeBrandResponse;
     } else if (typeof raw === "string") {
       try {
-        result = JSON.parse(raw) as AnalyzeBrandResponse;
+        result = JSON.parse(raw) as unknown as AnalyzeBrandResponse;
       } catch {
         result = undefined;
       }
