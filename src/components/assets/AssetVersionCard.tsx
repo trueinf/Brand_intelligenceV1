@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Download, RefreshCw, Loader2, RotateCcw } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { downloadFile } from "@/lib/downloadFile";
 import type { AssetVersion, CampaignOutput, CampaignJobProgress } from "@/types/campaign";
 
 const POLL_INTERVAL_MS = 1000;
@@ -43,7 +44,18 @@ export function AssetVersionCard({
   const [progress, setProgress] = useState<CampaignJobProgress | undefined>(initial.progress);
   const [output, setOutput] = useState<CampaignOutput | undefined>(initial.output);
   const [error, setError] = useState<string | undefined>(initial.error);
+  const [downloadToast, setDownloadToast] = useState<string | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = (message: string) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setDownloadToast(message);
+    toastTimerRef.current = setTimeout(() => {
+      setDownloadToast(null);
+      toastTimerRef.current = null;
+    }, 3000);
+  };
 
   const statusUrl =
     campaignApiBase != null
@@ -126,6 +138,12 @@ export function AssetVersionCard({
     if (initial.error !== undefined) setError(initial.error);
   }, [jobId, currentJobId, initial.status, initial.progress, initial.output, initial.error]);
 
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
   const isDone = status === "completed" || status === "failed";
   const canDownload = status === "completed" && output != null;
   const videoUrl = mode === "video" ? output?.videoUrl : null;
@@ -166,17 +184,23 @@ export function AssetVersionCard({
       <div className="relative aspect-[4/3] bg-muted/50 flex items-center justify-center overflow-hidden min-h-[160px]">
         {status === "completed" && mode === "image" && (adImages?.length ?? 0) > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 w-full h-full p-1">
-            {(adImages ?? []).slice(0, 4).map((img) => (
-              <a
-                key={img.type}
-                href={img.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block overflow-hidden rounded"
-              >
-                <img src={img.url} alt={imageTypeLabels[img.type] ?? img.type} className="h-full w-full object-cover" />
-              </a>
-            ))}
+            {(adImages ?? []).slice(0, 4).map((img) =>
+              img.url ? (
+                <a
+                  key={img.type}
+                  href={img.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block overflow-hidden rounded"
+                >
+                  <img src={img.url} alt={imageTypeLabels[img.type] ?? img.type} className="h-full w-full object-cover" />
+                </a>
+              ) : (
+                <div key={img.type} className="flex items-center justify-center rounded bg-muted/50 text-xs text-muted-foreground">
+                  Asset not ready
+                </div>
+              )
+            )}
           </div>
         )}
         {status === "completed" && mode === "video" && videoUrl && (
@@ -216,35 +240,67 @@ export function AssetVersionCard({
         )}
       </div>
 
+      {downloadToast && (
+        <div className="px-3 py-1.5 text-xs text-foreground bg-muted border-t border-border" role="status">
+          {downloadToast}
+        </div>
+      )}
       {isDone && status === "completed" && (
         <div className="flex items-center gap-2 p-3 border-t border-border flex-wrap">
-          {canDownload && mode === "video" && videoUrl && (
-            <a
-              href={videoUrl}
-              download="campaign-video.mp4"
-              target="_blank"
-              rel="noopener noreferrer"
-              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5 inline-flex items-center justify-center")}
+          {canDownload && mode === "video" && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              disabled={!videoUrl}
+              onClick={async () => {
+                if (!videoUrl) {
+                  showToast("Asset not ready");
+                  return;
+                }
+                try {
+                  await downloadFile(videoUrl, "campaign-video.mp4");
+                } catch {
+                  showToast("Download failed");
+                }
+              }}
             >
               <Download className="h-3.5 w-3.5" />
               Download
-            </a>
+            </Button>
           )}
           {canDownload && mode === "image" && (adImages?.length ?? 0) > 0 && (
             <>
-              {(adImages ?? []).map((img) => (
-                <a
-                  key={img.type}
-                  href={img.url}
-                  download={`${(imageTypeLabels?.[img.type] ?? img.type).replace(/\s+/g, "-")}.png`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5 inline-flex items-center justify-center")}
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  {(imageTypeLabels?.[img.type] ?? img.type).slice(0, 12)}
-                </a>
-              ))}
+              {(adImages ?? []).map((img) => {
+                const label = (imageTypeLabels?.[img.type] ?? img.type).slice(0, 12);
+                const filename = `${(imageTypeLabels?.[img.type] ?? img.type).replace(/\s+/g, "-")}.png`;
+                const hasUrl = Boolean(img.url);
+                return (
+                  <Button
+                    key={img.type}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={!hasUrl}
+                    onClick={async () => {
+                      if (!img.url) {
+                        showToast("Asset not ready");
+                        return;
+                      }
+                      try {
+                        await downloadFile(img.url, filename);
+                      } catch {
+                        showToast("Download failed");
+                      }
+                    }}
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    {label}
+                  </Button>
+                );
+              })}
             </>
           )}
           <Button

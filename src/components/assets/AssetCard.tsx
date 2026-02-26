@@ -1,8 +1,10 @@
 "use client";
 
+import { useState, useRef, useEffect } from "react";
 import { Download, RefreshCw, Loader2 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { downloadFile } from "@/lib/downloadFile";
 
 export type AssetStatus = "ready" | "failed" | "generating";
 
@@ -16,12 +18,13 @@ interface AssetCardBaseProps {
 
 interface ImageAssetCardProps extends AssetCardBaseProps {
   type: "image";
-  url: string;
+  /** undefined = asset not ready (download disabled, toast "Asset not ready"). */
+  url: string | undefined;
 }
 
 interface VideoAssetCardProps extends AssetCardBaseProps {
   type: "video";
-  url: string | null;
+  url: string | null | undefined;
   error?: string | null;
 }
 
@@ -51,6 +54,23 @@ export function AssetCard(props: AssetCardProps) {
   const { status, onRegenerate, isRegenerating, label, type } = props;
   const url = type === "image" ? props.url : props.url;
   const canDownload = (url?.length ?? 0) > 0;
+  const [downloadToast, setDownloadToast] = useState<string | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = (message: string) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setDownloadToast(message);
+    toastTimerRef.current = setTimeout(() => {
+      setDownloadToast(null);
+      toastTimerRef.current = null;
+    }, 3000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
 
   return (
     <div
@@ -89,19 +109,36 @@ export function AssetCard(props: AssetCardProps) {
       </div>
       <div className="flex flex-col gap-2 p-3 border-t border-border">
         <p className="text-sm font-medium text-foreground truncate">{label}</p>
+        {downloadToast && (
+          <p className="text-xs text-muted-foreground" role="status">
+            {downloadToast}
+          </p>
+        )}
         <div className="flex items-center gap-2 flex-wrap">
-          {canDownload && (
-            <a
-              href={url!}
-              download={type === "image" ? `${label.replace(/\s+/g, "-")}.png` : "campaign-video.mp4"}
-              target="_blank"
-              rel="noreferrer"
-              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5 inline-flex items-center justify-center")}
-            >
-              <Download className="h-3.5 w-3.5" />
-              Download
-            </a>
-          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            disabled={!canDownload}
+            onClick={async () => {
+              if (!url) {
+                showToast("Asset not ready");
+                return;
+              }
+              try {
+                await downloadFile(
+                  url,
+                  type === "image" ? `${label.replace(/\s+/g, "-")}.png` : "campaign-video.mp4"
+                );
+              } catch {
+                showToast("Download failed");
+              }
+            }}
+          >
+            <Download className="h-3.5 w-3.5" />
+            Download
+          </Button>
           {onRegenerate && (
             <Button
               type="button"

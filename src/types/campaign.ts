@@ -53,9 +53,13 @@ export interface CampaignCreativePrompts {
 /** Ad creative types for image generation. */
 export type AdCreativeType = "social_post" | "banner" | "product_focus";
 
+/** URL may be undefined until asset is ready (enables compile-time guards for download). */
+export type AssetDownloadUrl = string | undefined;
+
 export interface GeneratedAdImage {
   type: AdCreativeType;
-  url: string;
+  /** Present when asset is ready; undefined = not ready (disable download, show "Asset not ready"). */
+  url?: AssetDownloadUrl;
 }
 
 /** Precomputed campaign brain for fast video (no strategist/creative rerun). */
@@ -69,6 +73,7 @@ export type CampaignBrain = {
   cta: string;
 };
 
+/** Backend must always set output.adImages[].url when each image is ready and output.videoUrl when video is ready. */
 export interface CampaignOutput {
   brief: CampaignBrief;
   adImages: GeneratedAdImage[];

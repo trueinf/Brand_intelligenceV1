@@ -52,13 +52,19 @@ export function CampaignOutputPanel({ output, brandName }: CampaignOutputPanelPr
               <div className="grid grid-cols-1 gap-2">
                 {adImages.map((img) => (
                   <div key={img.type} className="rounded-lg overflow-hidden border border-border/60">
-                    <a href={img.url} target="_blank" rel="noreferrer" className="block">
-                      <img
-                        src={img.url}
-                        alt={AD_TYPE_LABELS[img.type] ?? img.type}
-                        className="w-full h-auto object-cover max-h-40"
-                      />
-                    </a>
+                    {img.url ? (
+                      <a href={img.url} target="_blank" rel="noopener noreferrer" className="block">
+                        <img
+                          src={img.url}
+                          alt={AD_TYPE_LABELS[img.type] ?? img.type}
+                          className="w-full h-auto object-cover max-h-40"
+                        />
+                      </a>
+                    ) : (
+                      <div className="flex items-center justify-center h-24 bg-muted/50 text-xs text-muted-foreground">
+                        Asset not ready
+                      </div>
+                    )}
                     <p className="p-1.5 text-xs text-muted-foreground">
                       {AD_TYPE_LABELS[img.type] ?? img.type}
                     </p>
