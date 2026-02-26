@@ -5,6 +5,7 @@ import { Download, RefreshCw, Loader2, RotateCcw } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { downloadFile } from "@/lib/downloadFile";
+import { ImageLightbox } from "@/components/ui/image-lightbox";
 import type { AssetVersion, CampaignOutput, CampaignJobProgress } from "@/types/campaign";
 
 const POLL_INTERVAL_MS = 1000;
@@ -45,6 +46,7 @@ export function AssetVersionCard({
   const [output, setOutput] = useState<CampaignOutput | undefined>(initial.output);
   const [error, setError] = useState<string | undefined>(initial.error);
   const [downloadToast, setDownloadToast] = useState<string | null>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -183,25 +185,32 @@ export function AssetVersionCard({
 
       <div className="relative aspect-[4/3] bg-muted/50 flex items-center justify-center overflow-hidden min-h-[160px]">
         {status === "completed" && mode === "image" && (adImages?.length ?? 0) > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 w-full h-full p-1">
-            {(adImages ?? []).slice(0, 4).map((img) =>
-              img.url ? (
-                <a
-                  key={img.type}
-                  href={img.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block overflow-hidden rounded"
-                >
-                  <img src={img.url} alt={imageTypeLabels[img.type] ?? img.type} className="h-full w-full object-cover" />
-                </a>
-              ) : (
-                <div key={img.type} className="flex items-center justify-center rounded bg-muted/50 text-xs text-muted-foreground">
-                  Asset not ready
-                </div>
-              )
-            )}
-          </div>
+          <>
+            <ImageLightbox
+              open={lightboxUrl != null}
+              src={lightboxUrl}
+              alt="Campaign image"
+              onClose={() => setLightboxUrl(null)}
+            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 w-full h-full p-1">
+              {(adImages ?? []).slice(0, 4).map((img) =>
+                img.url ? (
+                  <button
+                    key={img.type}
+                    type="button"
+                    onClick={() => setLightboxUrl(img.url ?? null)}
+                    className="block overflow-hidden rounded cursor-zoom-in text-left"
+                  >
+                    <img src={img.url} alt={imageTypeLabels[img.type] ?? img.type} className="h-full w-full object-cover" />
+                  </button>
+                ) : (
+                  <div key={img.type} className="flex items-center justify-center rounded bg-muted/50 text-xs text-muted-foreground">
+                    Asset not ready
+                  </div>
+                )
+              )}
+            </div>
+          </>
         )}
         {status === "completed" && mode === "video" && videoUrl && (
           <video

@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
+import { ImageLightbox } from "@/components/ui/image-lightbox";
 import { PosterPreview } from "./PosterPreview";
 import type { CampaignOutput as CampaignOutputType } from "@/types/campaign";
 
@@ -19,6 +21,7 @@ const AD_TYPE_LABELS: Record<string, string> = {
 
 export function CampaignOutputPanel({ output, brandName }: CampaignOutputPanelProps) {
   const { brief, adImages, videoUrl, videoError } = output;
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   return (
     <motion.div
@@ -48,18 +51,28 @@ export function CampaignOutputPanel({ output, brandName }: CampaignOutputPanelPr
 
           {adImages.length > 0 && (
             <div>
+              <ImageLightbox
+                open={lightboxUrl != null}
+                src={lightboxUrl}
+                alt="Campaign image"
+                onClose={() => setLightboxUrl(null)}
+              />
               <p className="text-xs font-medium text-muted-foreground mb-2">Generated ad images</p>
               <div className="grid grid-cols-1 gap-2">
                 {adImages.map((img) => (
                   <div key={img.type} className="rounded-lg overflow-hidden border border-border/60">
                     {img.url ? (
-                      <a href={img.url} target="_blank" rel="noopener noreferrer" className="block">
+                      <button
+                        type="button"
+                        onClick={() => setLightboxUrl(img.url ?? null)}
+                        className="block w-full cursor-zoom-in text-left"
+                      >
                         <img
                           src={img.url}
                           alt={AD_TYPE_LABELS[img.type] ?? img.type}
                           className="w-full h-auto object-cover max-h-40"
                         />
-                      </a>
+                      </button>
                     ) : (
                       <div className="flex items-center justify-center h-24 bg-muted/50 text-xs text-muted-foreground">
                         Asset not ready
