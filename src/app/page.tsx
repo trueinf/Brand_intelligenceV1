@@ -561,27 +561,6 @@ export default function Home() {
               </div>
             </div>
             <div>
-              <h2 className="text-xs uppercase tracking-widest text-slate-400 mb-4">Asset performance</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {videoOutput?.videoUrl && (
-                  <AssetPerformanceCard type="video" src={videoOutput.videoUrl} label="Latest video" onRegenerate={handleGenerateVideo} isRegenerating={videoLoading} />
-                )}
-                {(posterOutput?.adImages?.length ?? 0) > 0 &&
-                  posterOutput!.adImages!.filter((img): img is typeof img & { url: string } => Boolean(img.url)).slice(0, 2).map((img) => (
-                    <AssetPerformanceCard key={img.type} type="image" src={img.url} label={AD_TYPE_LABELS[img.type] ?? img.type} onRegenerate={handleGeneratePosters} isRegenerating={posterLoading} />
-                  ))}
-                {!videoOutput?.videoUrl && !(posterOutput?.adImages?.length) && (
-                  <div className="col-span-full flex flex-col items-center justify-center py-16 px-4 rounded-2xl bg-white/5 border border-white/10">
-                    <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center mb-4">
-                      <ImageIcon className="w-7 h-7 text-slate-400" />
-                    </div>
-                    <p className="text-sm font-medium text-slate-300 mb-4">No assets generated yet</p>
-                    <button type="button" onClick={() => setAssetStudioOpen(true)} className="btn-gradient px-5 py-2.5 rounded-xl font-medium text-white shadow-lg hover:shadow-xl transition-all">Generate Asset</button>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div>
               <h2 className="text-xs uppercase tracking-widest text-slate-400 mb-4">Campaigns</h2>
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 {(result.campaigns ?? []).map((c, i) => (
