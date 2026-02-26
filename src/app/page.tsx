@@ -34,8 +34,17 @@ import {
 import { AssetVersionStack } from "@/components/assets/AssetVersionStack";
 import { AppShell, type AppSection } from "@/components/layout/AppShell";
 import { ImageIcon } from "lucide-react";
+import { usePolling } from "@/hooks/usePolling";
 
 const POLL_INTERVAL_MS = 1000;
+
+type CampaignStatusJson = {
+  status?: string;
+  output?: CampaignOutput;
+  error?: string;
+  progress?: CampaignJobProgress;
+};
+
 const AD_TYPE_LABELS: Record<string, string> = {
   social_post: "Social post",
   banner: "Banner",
@@ -81,6 +90,15 @@ export default function Home() {
   const campaignJobCompletedRef = useRef(false);
   /** Job ID the page is currently polling; cards with this jobId skip their own polling. */
   const [currentPollingJobId, setCurrentPollingJobId] = useState<string | null>(null);
+
+  const pollStartedAtRef = useRef<number>(0);
+  const pollMaxMsRef = useRef<number>(0);
+  const consecutiveFailuresRef = useRef<number>(0);
+  const campaignPollingSetLoadingRef = useRef<(v: boolean) => void>(() => {});
+  const campaignPollingSetJobErrorRef = useRef<(v: string | null) => void>(() => {});
+  const campaignPollingSetProgressRef = useRef<(v: CampaignJobProgress | null) => void>(() => {});
+  const campaignPollingOnSuccessRef = useRef<(data: CampaignStatusJson) => void>(() => {});
+  const campaignPollingOnErrorRef = useRef<(err: unknown) => void>(() => {});
 
   const [assetStudioOpen, setAssetStudioOpen] = useState(false);
   const [assetStudioDefaultMode, setAssetStudioDefaultMode] = useState<"image" | "video">("image");
@@ -210,6 +228,29 @@ export default function Home() {
     []
   );
 
+  const pollCampaignStatus = useCallback(async (): Promise<CampaignStatusJson> => {
+    const id = currentJobIdRef.current;
+    if (!id) return { status: "failed", error: "No job" };
+    const statusUrl = campaignApiBase
+      ? `${campaignApiBase}/campaign-status?jobId=${encodeURIComponent(id)}`
+      : `/api/campaign-status?jobId=${encodeURIComponent(id)}`;
+    const res = await fetch(statusUrl, { cache: "no-store" });
+    const json = (await res.json().catch(() => ({}))) as CampaignStatusJson;
+    if (res.status === 404) return { ...json, status: "failed", error: "Job not found or expired" };
+    if (!res.ok) return { ...json, status: "failed", error: (json as { error?: string }).error ?? "Failed to get status" };
+    return json;
+  }, [campaignApiBase]);
+
+  const { start: campaignPollingStart, stop: campaignPollingStop } = usePolling<CampaignStatusJson>({
+    pollFn: pollCampaignStatus,
+    interval: POLL_INTERVAL_MS,
+    enabled: true,
+    stopWhen: (data) =>
+      (data.status ?? "").toLowerCase() === "completed" || (data.status ?? "").toLowerCase() === "failed",
+    onSuccess: (data) => campaignPollingOnSuccessRef.current(data),
+    onError: (err) => campaignPollingOnErrorRef.current?.(err),
+  });
+
   const runCampaignJob = useCallback(
     async (mode: "image" | "video", directInput?: { brandName: string; directPrompt: string }) => {
       const input = directInput ?? (result ? mapAnalyzeToCampaignInput(result) : null);
@@ -280,155 +321,133 @@ export default function Home() {
         setCurrentPollingJobId(jobId);
         console.log("[campaign-ui] START JOB", effectiveMode, jobId);
 
-        const startPolling = (pollJobId: string) => {
-          let consecutiveFailures = 0;
-          const pollStartedAt = Date.now();
-          const pollMaxMs =
-            effectiveMode === "image" ? 15 * 60 * 1000 : 50 * 60 * 1000; // 15 min image, 50 min video
-          const poll = async (): Promise<boolean> => {
-            const statusUrl = campaignApiBase
-              ? `${campaignApiBase}/campaign-status?jobId=${encodeURIComponent(pollJobId)}`
-              : `/api/campaign-status?jobId=${encodeURIComponent(pollJobId)}`;
-            try {
-              if (Date.now() - pollStartedAt > pollMaxMs) {
-                const msg = "Generation is taking longer than usual. Please try again or check the server.";
-                setJobError(msg);
-                setLoadingState(false);
-                updateAssetVersion(campaignId, pollJobId, { status: "failed", error: msg });
-                setCurrentPollingJobId(null);
-                return true;
-              }
-              const statusRes = await fetch(statusUrl, { cache: "no-store" });
-              consecutiveFailures = 0;
-              const statusJson = (await statusRes.json().catch(() => ({}))) as {
-                status?: string;
-                output?: CampaignOutput;
-                error?: string;
-                progress?: CampaignJobProgress;
-              };
-              console.log("[campaign-ui] POLLING", pollJobId, statusJson);
-              if (pollJobId !== currentJobIdRef.current) {
-                setLoadingState(false);
-                setCurrentPollingJobId(null);
-                return true;
-              }
-              if (statusJson.progress != null) {
-              setProgress(statusJson.progress);
-            }
-            if (statusRes.status === 404) {
-              setJobError("Job not found or expired");
-              setLoadingState(false);
-              updateAssetVersion(campaignId, pollJobId, { status: "failed", error: "Job not found or expired" });
+        pollStartedAtRef.current = Date.now();
+        pollMaxMsRef.current = effectiveMode === "image" ? 15 * 60 * 1000 : 50 * 60 * 1000;
+        consecutiveFailuresRef.current = 0;
+        campaignPollingSetLoadingRef.current = setLoadingState;
+        campaignPollingSetJobErrorRef.current = setJobError;
+        campaignPollingSetProgressRef.current = setProgress;
+
+        campaignPollingOnSuccessRef.current = (data: CampaignStatusJson) => {
+          consecutiveFailuresRef.current = 0;
+          const pollJobId = currentJobIdRef.current;
+          const setLoading = campaignPollingSetLoadingRef.current;
+          const setJobErrorFn = campaignPollingSetJobErrorRef.current;
+          const setProgressFn = campaignPollingSetProgressRef.current;
+          if (pollJobId == null) return;
+          if (Date.now() - pollStartedAtRef.current > pollMaxMsRef.current) {
+            const msg = "Generation is taking longer than usual. Please try again or check the server.";
+            setJobErrorFn(msg);
+            setLoading(false);
+            updateAssetVersion(campaignId, pollJobId, { status: "failed", error: msg });
+            setCurrentPollingJobId(null);
+            campaignPollingStop();
+            return;
+          }
+          console.log("[campaign-ui] POLLING", pollJobId, data);
+          if (data.progress != null) setProgressFn(data.progress);
+          const status = (data.status ?? "").toLowerCase();
+          if (status === "completed" && data.output) {
+            if (pollJobId !== currentJobIdRef.current) {
+              setLoading(false);
               setCurrentPollingJobId(null);
-              return true;
+              campaignPollingStop();
+              return;
             }
-            if (!statusRes.ok) {
-              setJobError((statusJson as { error?: string }).error ?? "Failed to get status");
-              setLoadingState(false);
-              updateAssetVersion(campaignId, pollJobId, { status: "failed", error: (statusJson as { error?: string }).error ?? "Failed to get status" });
+            const out = data.output;
+            if (out.campaignBrain) setCampaignBrainJobId(pollJobId);
+            const outputWithResolvedUrls =
+              campaignApiBase && (out.adImages?.length ?? 0) > 0
+                ? {
+                    ...out,
+                    adImages: out.adImages.map((img) => ({
+                      ...img,
+                      url:
+                        img.url.startsWith("http") || img.url.startsWith("data:")
+                          ? img.url
+                          : `${campaignApiBase}${img.url.startsWith("/") ? "" : "/"}${img.url}`,
+                    })),
+                  }
+                : out;
+            const jobMode = activeJobModeRef.current;
+            if (jobMode === "video" || jobMode === "video-fast") {
+              setVideoOutput(outputWithResolvedUrls);
+            } else if (jobMode === "image") {
+              setPosterOutput(outputWithResolvedUrls);
+            } else if (jobMode === "both") {
+              if (outputWithResolvedUrls.videoUrl) setVideoOutput(outputWithResolvedUrls);
+              if (outputWithResolvedUrls.adImages?.length) setPosterOutput(outputWithResolvedUrls);
+            } else {
+              setOutput(outputWithResolvedUrls);
+            }
+            updateAssetVersion(campaignId, pollJobId, { status: "completed", output: outputWithResolvedUrls });
+            campaignJobCompletedRef.current = true;
+            console.log("[campaign-ui] job completed", jobMode, outputWithResolvedUrls);
+            setLoading(false);
+            setCurrentPollingJobId(null);
+            campaignPollingStop();
+            return;
+          }
+          if (status === "failed") {
+            if (pollJobId !== currentJobIdRef.current) {
+              setLoading(false);
               setCurrentPollingJobId(null);
-              return true;
+              campaignPollingStop();
+              return;
             }
-            const status = (statusJson.status ?? "").toLowerCase();
-            if (status === "completed" && statusJson.output) {
-              if (pollJobId !== currentJobIdRef.current) {
-                setLoadingState(false);
-                setCurrentPollingJobId(null);
-                return true;
-              }
-              const out = statusJson.output;
-              if (out.campaignBrain) setCampaignBrainJobId(pollJobId);
-              const outputWithResolvedUrls =
-                campaignApiBase && (out.adImages?.length ?? 0) > 0
-                  ? {
-                      ...out,
-                      adImages: out.adImages.map((img) => ({
-                        ...img,
-                        url:
-                          img.url.startsWith("http") || img.url.startsWith("data:")
-                            ? img.url
-                            : `${campaignApiBase}${img.url.startsWith("/") ? "" : "/"}${img.url}`,
-                      })),
-                    }
-                  : out;
-              const jobMode = activeJobModeRef.current;
-              if (jobMode === "video" || jobMode === "video-fast") {
-                setVideoOutput(outputWithResolvedUrls);
-              } else if (jobMode === "image") {
-                setPosterOutput(outputWithResolvedUrls);
-              } else if (jobMode === "both") {
-                if (outputWithResolvedUrls.videoUrl) setVideoOutput(outputWithResolvedUrls);
-                if (outputWithResolvedUrls.adImages?.length) setPosterOutput(outputWithResolvedUrls);
-              } else {
-                setOutput(outputWithResolvedUrls);
-              }
-              updateAssetVersion(campaignId, pollJobId, { status: "completed", output: outputWithResolvedUrls });
-              campaignJobCompletedRef.current = true;
-              console.log("[campaign-ui] job completed", jobMode, outputWithResolvedUrls);
-              setLoadingState(false);
-              setCurrentPollingJobId(null);
-              return true;
-            }
-            if (status === "failed") {
-              if (pollJobId !== currentJobIdRef.current) {
-                setLoadingState(false);
-                setCurrentPollingJobId(null);
-                return true;
-              }
-              const err =
-                (activeJobModeRef.current === "image" && (statusJson.output as CampaignOutput | undefined)?.posterError) ||
-                statusJson.error ||
-                "Generation failed";
-              setJobError(err);
-              updateAssetVersion(campaignId, pollJobId, { status: "failed", error: err });
-              setLoadingState(false);
-              setCurrentPollingJobId(null);
-              return true;
-            }
-            // Still running/queued; continue polling (or stop if over pollMaxMs next tick)
-            return false;
-          } catch (e) {
-            consecutiveFailures += 1;
-            const message = e instanceof Error ? e.message : "Network error";
-            // Stop polling if we already applied the completed output (e.g. previous poll succeeded, this one got ERR_HTTP2_PROTOCOL_ERROR).
-            if (campaignJobCompletedRef.current) return true;
-            // If the dev server restarts or is down, fetch will throw (ERR_CONNECTION_REFUSED).
-            // Don't poll forever in that case—surface an actionable error.
-            if (consecutiveFailures >= 3 || message.includes("ERR_CONNECTION_REFUSED") || message.includes("Failed to fetch") || message.includes("ERR_HTTP2_PROTOCOL_ERROR")) {
-              setJobError("Lost connection to the server while polling. Restart the dev server and generate a new video.");
-              setLoadingState(false);
-              setCurrentPollingJobId(null);
-              return true;
-            }
-            return false;
+            const err =
+              (activeJobModeRef.current === "image" && (data.output as CampaignOutput | undefined)?.posterError) ||
+              data.error ||
+              "Generation failed";
+            setJobErrorFn(err);
+            updateAssetVersion(campaignId, pollJobId, { status: "failed", error: err });
+            setLoading(false);
+            setCurrentPollingJobId(null);
+            campaignPollingStop();
           }
         };
-          (async () => {
-            let done = false;
-            try {
-              done = await poll();
-            } catch {
-              if (campaignJobCompletedRef.current) done = true;
-            }
-            if (done) return;
-            const intervalId = setInterval(() => {
-              poll()
-                .then((d) => {
-                  if (d) clearInterval(intervalId);
-                })
-                .catch(() => {
-                  if (campaignJobCompletedRef.current) clearInterval(intervalId);
-                });
-            }, POLL_INTERVAL_MS);
-          })();
+
+        campaignPollingOnErrorRef.current = (err: unknown) => {
+          if (campaignJobCompletedRef.current) {
+            campaignPollingStop();
+            return;
+          }
+          consecutiveFailuresRef.current += 1;
+          const message = err instanceof Error ? err.message : "Network error";
+          const setLoading = campaignPollingSetLoadingRef.current;
+          const setJobErrorFn = campaignPollingSetJobErrorRef.current;
+          if (
+            consecutiveFailuresRef.current >= 3 ||
+            message.includes("ERR_CONNECTION_REFUSED") ||
+            message.includes("Failed to fetch") ||
+            message.includes("ERR_HTTP2_PROTOCOL_ERROR")
+          ) {
+            setJobErrorFn(
+              "Lost connection to the server while polling. Restart the dev server and generate a new video."
+            );
+            setLoading(false);
+            setCurrentPollingJobId(null);
+            campaignPollingStop();
+          }
         };
-        startPolling(jobId);
+
+        campaignPollingStop();
+        campaignPollingStart();
       } catch (e) {
         setJobError(e instanceof Error ? e.message : "Request failed");
         setLoadingState(false);
       }
     },
-    [result, campaignApiBase, analyzeCampaignBrainId, campaignBrainJobId, selectedCampaign, updateAssetVersion]
+    [
+      result,
+      campaignApiBase,
+      analyzeCampaignBrainId,
+      campaignBrainJobId,
+      selectedCampaign,
+      updateAssetVersion,
+      campaignPollingStart,
+      campaignPollingStop,
+    ]
   );
 
   const handleAssetStudioGenerate = useCallback(
