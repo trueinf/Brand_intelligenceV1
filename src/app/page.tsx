@@ -77,6 +77,8 @@ export default function Home() {
   const [activeJobMode, setActiveJobMode] = useState<"image" | "video" | "video-fast" | "both" | null>(null);
   const currentJobIdRef = useRef<string | null>(null);
   const activeJobModeRef = useRef<"image" | "video" | "video-fast" | "both" | null>(null);
+  /** Set when we've applied completed output for current job; used to stop polling after ERR_HTTP2_PROTOCOL_ERROR etc. */
+  const campaignJobCompletedRef = useRef(false);
 
   const [assetStudioOpen, setAssetStudioOpen] = useState(false);
   const [assetStudioDefaultMode, setAssetStudioDefaultMode] = useState<"image" | "video">("image");
@@ -219,6 +221,7 @@ export default function Home() {
       setVideoError(null);
       setPosterProgress(null);
       setVideoProgress(null);
+      campaignJobCompletedRef.current = false;
       const campaignBrainId = directInput ? null : (analyzeCampaignBrainId ?? campaignBrainJobId);
       const useFastVideo = !directInput && mode === "video" && campaignBrainId != null;
       const requestBody = useFastVideo
@@ -329,6 +332,7 @@ export default function Home() {
               } else {
                 setOutput(outputWithResolvedUrls);
               }
+              campaignJobCompletedRef.current = true;
               console.log("[campaign-ui] job completed", jobMode, outputWithResolvedUrls);
               setLoadingState(false);
               return true;
@@ -350,9 +354,11 @@ export default function Home() {
           } catch (e) {
             consecutiveFailures += 1;
             const message = e instanceof Error ? e.message : "Network error";
+            // Stop polling if we already applied the completed output (e.g. previous poll succeeded, this one got ERR_HTTP2_PROTOCOL_ERROR).
+            if (campaignJobCompletedRef.current) return true;
             // If the dev server restarts or is down, fetch will throw (ERR_CONNECTION_REFUSED).
             // Don't poll forever in that case—surface an actionable error.
-            if (consecutiveFailures >= 3 || message.includes("ERR_CONNECTION_REFUSED") || message.includes("Failed to fetch")) {
+            if (consecutiveFailures >= 3 || message.includes("ERR_CONNECTION_REFUSED") || message.includes("Failed to fetch") || message.includes("ERR_HTTP2_PROTOCOL_ERROR")) {
               setJobError("Lost connection to the server while polling. Restart the dev server and generate a new video.");
               setLoadingState(false);
               return true;
@@ -361,11 +367,21 @@ export default function Home() {
           }
         };
           (async () => {
-            let done = await poll();
-            if (done) return;
-            const intervalId = setInterval(async () => {
+            let done = false;
+            try {
               done = await poll();
-              if (done) clearInterval(intervalId);
+            } catch {
+              if (campaignJobCompletedRef.current) done = true;
+            }
+            if (done) return;
+            const intervalId = setInterval(() => {
+              poll()
+                .then((d) => {
+                  if (d) clearInterval(intervalId);
+                })
+                .catch(() => {
+                  if (campaignJobCompletedRef.current) clearInterval(intervalId);
+                });
             }, POLL_INTERVAL_MS);
           })();
         };
