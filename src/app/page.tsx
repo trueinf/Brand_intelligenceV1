@@ -79,6 +79,8 @@ export default function Home() {
   const activeJobModeRef = useRef<"image" | "video" | "video-fast" | "both" | null>(null);
   /** Set when we've applied completed output for current job; used to stop polling after ERR_HTTP2_PROTOCOL_ERROR etc. */
   const campaignJobCompletedRef = useRef(false);
+  /** Job ID the page is currently polling; cards with this jobId skip their own polling. */
+  const [currentPollingJobId, setCurrentPollingJobId] = useState<string | null>(null);
 
   const [assetStudioOpen, setAssetStudioOpen] = useState(false);
   const [assetStudioDefaultMode, setAssetStudioDefaultMode] = useState<"image" | "video">("image");
@@ -198,6 +200,16 @@ export default function Home() {
     }
   }, []);
 
+  const updateAssetVersion = useCallback(
+    (cid: string, jobId: string, update: Partial<AssetVersion>) => {
+      setAssetHistory((prev) => ({
+        ...prev,
+        [cid]: (prev[cid] ?? []).map((v) => (v.jobId === jobId ? { ...v, ...update } : v)),
+      }));
+    },
+    []
+  );
+
   const runCampaignJob = useCallback(
     async (mode: "image" | "video", directInput?: { brandName: string; directPrompt: string }) => {
       const input = directInput ?? (result ? mapAnalyzeToCampaignInput(result) : null);
@@ -265,6 +277,7 @@ export default function Home() {
         currentJobIdRef.current = jobId;
         activeJobModeRef.current = effectiveMode;
         setActiveJobMode(effectiveMode);
+        setCurrentPollingJobId(jobId);
         console.log("[campaign-ui] START JOB", effectiveMode, jobId);
 
         const startPolling = (pollJobId: string) => {
@@ -285,6 +298,7 @@ export default function Home() {
               console.log("[campaign-ui] POLLING", pollJobId, statusJson);
               if (pollJobId !== currentJobIdRef.current) {
                 setLoadingState(false);
+                setCurrentPollingJobId(null);
                 return true;
               }
               if (statusJson.progress != null) {
@@ -293,17 +307,22 @@ export default function Home() {
             if (statusRes.status === 404) {
               setJobError("Job not found or expired");
               setLoadingState(false);
+              updateAssetVersion(campaignId, pollJobId, { status: "failed", error: "Job not found or expired" });
+              setCurrentPollingJobId(null);
               return true;
             }
             if (!statusRes.ok) {
               setJobError((statusJson as { error?: string }).error ?? "Failed to get status");
               setLoadingState(false);
+              updateAssetVersion(campaignId, pollJobId, { status: "failed", error: (statusJson as { error?: string }).error ?? "Failed to get status" });
+              setCurrentPollingJobId(null);
               return true;
             }
             const status = statusJson.status;
             if (status === "completed" && statusJson.output) {
               if (pollJobId !== currentJobIdRef.current) {
                 setLoadingState(false);
+                setCurrentPollingJobId(null);
                 return true;
               }
               const out = statusJson.output;
@@ -332,14 +351,17 @@ export default function Home() {
               } else {
                 setOutput(outputWithResolvedUrls);
               }
+              updateAssetVersion(campaignId, pollJobId, { status: "completed", output: outputWithResolvedUrls });
               campaignJobCompletedRef.current = true;
               console.log("[campaign-ui] job completed", jobMode, outputWithResolvedUrls);
               setLoadingState(false);
+              setCurrentPollingJobId(null);
               return true;
             }
             if (status === "failed") {
               if (pollJobId !== currentJobIdRef.current) {
                 setLoadingState(false);
+                setCurrentPollingJobId(null);
                 return true;
               }
               const err =
@@ -347,7 +369,9 @@ export default function Home() {
                 statusJson.error ||
                 "Generation failed";
               setJobError(err);
+              updateAssetVersion(campaignId, pollJobId, { status: "failed", error: err });
               setLoadingState(false);
+              setCurrentPollingJobId(null);
               return true;
             }
             return false;
@@ -361,6 +385,7 @@ export default function Home() {
             if (consecutiveFailures >= 3 || message.includes("ERR_CONNECTION_REFUSED") || message.includes("Failed to fetch") || message.includes("ERR_HTTP2_PROTOCOL_ERROR")) {
               setJobError("Lost connection to the server while polling. Restart the dev server and generate a new video.");
               setLoadingState(false);
+              setCurrentPollingJobId(null);
               return true;
             }
             return false;
@@ -391,7 +416,7 @@ export default function Home() {
         setLoadingState(false);
       }
     },
-    [result, campaignApiBase, analyzeCampaignBrainId, campaignBrainJobId, selectedCampaign]
+    [result, campaignApiBase, analyzeCampaignBrainId, campaignBrainJobId, selectedCampaign, updateAssetVersion]
   );
 
   const handleAssetStudioGenerate = useCallback(
@@ -426,15 +451,6 @@ export default function Home() {
   const campaignIdForAssets =
     selectedCampaign?.campaign_name ??
     (Object.keys(assetHistory).includes("direct") ? "direct" : "default");
-  const updateAssetVersion = useCallback(
-    (cid: string, jobId: string, update: Partial<AssetVersion>) => {
-      setAssetHistory((prev) => ({
-        ...prev,
-        [cid]: (prev[cid] ?? []).map((v) => (v.jobId === jobId ? { ...v, ...update } : v)),
-      }));
-    },
-    []
-  );
 
   const synthetic = result?.synthetic_data;
   const trafficTrend = result?.traffic_trend ?? synthetic?.traffic_trend ?? [];
@@ -589,6 +605,7 @@ export default function Home() {
                   mode="image"
                   label="Campaign posters"
                   campaignApiBase={campaignApiBase}
+                  currentJobId={currentPollingJobId}
                   onRegenerate={() => runCampaignJob("image")}
                   isRegenerating={posterLoading}
                   onUpdateVersion={(jobId, update) => updateAssetVersion(campaignIdForAssets, jobId, update)}
@@ -609,6 +626,7 @@ export default function Home() {
                   mode="video"
                   label="Campaign video"
                   campaignApiBase={campaignApiBase}
+                  currentJobId={currentPollingJobId}
                   onRegenerate={() => runCampaignJob("video")}
                   isRegenerating={videoLoading}
                   onUpdateVersion={(jobId, update) => updateAssetVersion(campaignIdForAssets, jobId, update)}

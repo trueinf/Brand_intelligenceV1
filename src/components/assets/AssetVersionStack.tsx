@@ -9,6 +9,7 @@ interface AssetVersionStackProps {
   mode: "image" | "video";
   label: string;
   campaignApiBase: string | null;
+  currentJobId?: string | null;
   onRegenerate: () => void;
   isRegenerating?: boolean;
   onUpdateVersion: (jobId: string, update: Partial<AssetVersion>) => void;
@@ -20,6 +21,7 @@ export function AssetVersionStack({
   mode,
   label,
   campaignApiBase,
+  currentJobId,
   onRegenerate,
   isRegenerating,
   onUpdateVersion,
@@ -37,6 +39,7 @@ export function AssetVersionStack({
           key={v.jobId}
           jobId={v.jobId}
           mode={mode}
+          currentJobId={currentJobId}
           version={v.version}
           label={i === 0 ? label : `${label} (v${v.version})`}
           campaignApiBase={campaignApiBase}

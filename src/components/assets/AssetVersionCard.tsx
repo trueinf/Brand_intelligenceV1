@@ -11,6 +11,7 @@ const POLL_INTERVAL_MS = 1000;
 interface AssetVersionCardProps {
   jobId: string;
   mode: "image" | "video";
+  currentJobId?: string | null;
   version: number;
   label: string;
   campaignApiBase: string | null;
@@ -26,6 +27,7 @@ interface AssetVersionCardProps {
 export function AssetVersionCard({
   jobId,
   mode,
+  currentJobId,
   version,
   label,
   campaignApiBase,
@@ -49,6 +51,7 @@ export function AssetVersionCard({
       : `/api/campaign-status?jobId=${encodeURIComponent(jobId)}`;
 
   useEffect(() => {
+    if (jobId === currentJobId) return;
     if (status === "completed" || status === "failed") return;
 
     const poll = async () => {
@@ -111,7 +114,15 @@ export function AssetVersionCard({
       if (pollingRef.current) clearInterval(pollingRef.current);
       pollingRef.current = null;
     };
-  }, [jobId, statusUrl, status, onStatusChange]);
+  }, [jobId, currentJobId, statusUrl, status, onStatusChange]);
+
+  useEffect(() => {
+    if (jobId !== currentJobId) return;
+    if (initial.status != null) setStatus(initial.status);
+    if (initial.progress !== undefined) setProgress(initial.progress);
+    if (initial.output !== undefined) setOutput(initial.output);
+    if (initial.error !== undefined) setError(initial.error);
+  }, [jobId, currentJobId, initial.status, initial.progress, initial.output, initial.error]);
 
   const isDone = status === "completed" || status === "failed";
   const canDownload = status === "completed" && output != null;
