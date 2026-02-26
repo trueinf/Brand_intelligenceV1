@@ -484,6 +484,10 @@ export default function Home() {
     selectedCampaign?.campaign_name ??
     (Object.keys(assetHistory).includes("direct") ? "direct" : "default");
 
+  const hasGeneratedAssets = Boolean(
+    videoOutput?.videoUrl || (posterOutput?.adImages?.length ?? 0) > 0
+  );
+
   const synthetic = result?.synthetic_data;
   const trafficTrend = result?.traffic_trend ?? synthetic?.traffic_trend ?? [];
   const channelMix = synthetic?.channel_mix;
@@ -691,7 +695,7 @@ export default function Home() {
         )}
 
         {!loading && !result && !error && (
-          (videoOutput?.videoUrl || (posterOutput?.adImages?.length ?? 0) > 0) ? (
+          hasGeneratedAssets ? (
             <motion.div variants={container} initial="hidden" animate="show" className="w-full space-y-8">
               <div>
                 <h2 className="text-xs uppercase tracking-widest text-slate-400 mb-4">Generated from Asset Studio</h2>
