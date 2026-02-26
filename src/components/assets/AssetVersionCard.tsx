@@ -169,7 +169,7 @@ export function AssetVersionCard({
                 key={img.type}
                 href={img.url}
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
                 className="block overflow-hidden rounded"
               >
                 <img src={img.url} alt={imageTypeLabels[img.type] ?? img.type} className="h-full w-full object-cover" />
@@ -221,7 +221,7 @@ export function AssetVersionCard({
               href={videoUrl}
               download="campaign-video.mp4"
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5 inline-flex items-center justify-center")}
             >
               <Download className="h-3.5 w-3.5" />
@@ -236,7 +236,7 @@ export function AssetVersionCard({
                   href={img.url}
                   download={`${(imageTypeLabels?.[img.type] ?? img.type).replace(/\s+/g, "-")}.png`}
                   target="_blank"
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
                   className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5 inline-flex items-center justify-center")}
                 >
                   <Download className="h-3.5 w-3.5" />
