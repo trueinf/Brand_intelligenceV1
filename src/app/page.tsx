@@ -282,11 +282,22 @@ export default function Home() {
 
         const startPolling = (pollJobId: string) => {
           let consecutiveFailures = 0;
+          const pollStartedAt = Date.now();
+          const pollMaxMs =
+            effectiveMode === "image" ? 15 * 60 * 1000 : 50 * 60 * 1000; // 15 min image, 50 min video
           const poll = async (): Promise<boolean> => {
             const statusUrl = campaignApiBase
               ? `${campaignApiBase}/campaign-status?jobId=${encodeURIComponent(pollJobId)}`
               : `/api/campaign-status?jobId=${encodeURIComponent(pollJobId)}`;
             try {
+              if (Date.now() - pollStartedAt > pollMaxMs) {
+                const msg = "Generation is taking longer than usual. Please try again or check the server.";
+                setJobError(msg);
+                setLoadingState(false);
+                updateAssetVersion(campaignId, pollJobId, { status: "failed", error: msg });
+                setCurrentPollingJobId(null);
+                return true;
+              }
               const statusRes = await fetch(statusUrl, { cache: "no-store" });
               consecutiveFailures = 0;
               const statusJson = (await statusRes.json().catch(() => ({}))) as {
@@ -318,7 +329,7 @@ export default function Home() {
               setCurrentPollingJobId(null);
               return true;
             }
-            const status = statusJson.status;
+            const status = (statusJson.status ?? "").toLowerCase();
             if (status === "completed" && statusJson.output) {
               if (pollJobId !== currentJobIdRef.current) {
                 setLoadingState(false);
@@ -374,6 +385,7 @@ export default function Home() {
               setCurrentPollingJobId(null);
               return true;
             }
+            // Still running/queued; continue polling (or stop if over pollMaxMs next tick)
             return false;
           } catch (e) {
             consecutiveFailures += 1;

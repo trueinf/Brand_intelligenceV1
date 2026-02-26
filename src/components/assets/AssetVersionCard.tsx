@@ -117,7 +117,9 @@ export function AssetVersionCard({
   }, [jobId, currentJobId, statusUrl, status, onStatusChange]);
 
   useEffect(() => {
-    if (jobId !== currentJobId) return;
+    const isCurrentJob = jobId === currentJobId;
+    const isTerminalFromParent = initial.status === "completed" || initial.status === "failed";
+    if (!isCurrentJob && !isTerminalFromParent) return;
     if (initial.status != null) setStatus(initial.status);
     if (initial.progress !== undefined) setProgress(initial.progress);
     if (initial.output !== undefined) setOutput(initial.output);
