@@ -360,13 +360,14 @@ export default function Home() {
               campaignApiBase && (out.adImages?.length ?? 0) > 0
                 ? {
                     ...out,
-                    adImages: out.adImages.map((img) => ({
-                      ...img,
-                      url:
+                    adImages: out.adImages.map((img) => {
+                      if (img.url == null) return img;
+                      const resolved =
                         img.url.startsWith("http") || img.url.startsWith("data:")
                           ? img.url
-                          : `${campaignApiBase}${img.url.startsWith("/") ? "" : "/"}${img.url}`,
-                    })),
+                          : `${campaignApiBase}${img.url.startsWith("/") ? "" : "/"}${img.url}`;
+                      return { ...img, url: resolved };
+                    }),
                   }
                 : out;
             const jobMode = activeJobModeRef.current;
@@ -561,9 +562,10 @@ export default function Home() {
                 {videoOutput?.videoUrl && (
                   <AssetPerformanceCard type="video" src={videoOutput.videoUrl} label="Latest video" onRegenerate={handleGenerateVideo} isRegenerating={videoLoading} />
                 )}
-                {(posterOutput?.adImages?.length ?? 0) > 0 && posterOutput!.adImages!.slice(0, 2).map((img) => (
-                  <AssetPerformanceCard key={img.type} type="image" src={img.url} label={AD_TYPE_LABELS[img.type] ?? img.type} onRegenerate={handleGeneratePosters} isRegenerating={posterLoading} />
-                ))}
+                {(posterOutput?.adImages?.length ?? 0) > 0 &&
+                  posterOutput!.adImages!.filter((img): img is typeof img & { url: string } => Boolean(img.url)).slice(0, 2).map((img) => (
+                    <AssetPerformanceCard key={img.type} type="image" src={img.url} label={AD_TYPE_LABELS[img.type] ?? img.type} onRegenerate={handleGeneratePosters} isRegenerating={posterLoading} />
+                  ))}
                 {!videoOutput?.videoUrl && !(posterOutput?.adImages?.length) && (
                   <div className="col-span-full flex flex-col items-center justify-center py-16 px-4 rounded-2xl bg-white/5 border border-white/10">
                     <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center mb-4">
@@ -697,9 +699,10 @@ export default function Home() {
                   {videoOutput?.videoUrl && (
                     <AssetPerformanceCard type="video" src={videoOutput.videoUrl} label="Latest video" onRegenerate={handleGenerateVideo} isRegenerating={videoLoading} />
                   )}
-                  {(posterOutput?.adImages?.length ?? 0) > 0 && posterOutput!.adImages!.slice(0, 2).map((img) => (
-                    <AssetPerformanceCard key={img.type} type="image" src={img.url} label={AD_TYPE_LABELS[img.type] ?? img.type} onRegenerate={handleGeneratePosters} isRegenerating={posterLoading} />
-                  ))}
+                  {(posterOutput?.adImages?.length ?? 0) > 0 &&
+                    posterOutput!.adImages!.filter((img): img is typeof img & { url: string } => Boolean(img.url)).slice(0, 2).map((img) => (
+                      <AssetPerformanceCard key={img.type} type="image" src={img.url} label={AD_TYPE_LABELS[img.type] ?? img.type} onRegenerate={handleGeneratePosters} isRegenerating={posterLoading} />
+                    ))}
                 </div>
               </div>
             </motion.div>
