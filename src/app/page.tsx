@@ -401,7 +401,7 @@ export default function Home() {
         return;
       }
       if (formState && hasDirectPrompt(formState)) {
-        const brandName = formState.goal?.trim() || formState.offer?.trim() || "Asset Studio";
+        const brandName = formState.brandName?.trim() || formState.goal?.trim() || formState.offer?.trim() || "Asset Studio";
         runCampaignJob(mode, {
           brandName,
           directPrompt: buildAssetPrompt(formState, mode),

@@ -1,4 +1,5 @@
 export interface AssetPromptFormState {
+  brandName: string;
   goal: string;
   audience: string;
   channel: string;
@@ -10,6 +11,7 @@ export interface AssetPromptFormState {
 
 export function defaultAssetPromptFormState(): AssetPromptFormState {
   return {
+    brandName: "",
     goal: "",
     audience: "",
     channel: "",
@@ -30,6 +32,7 @@ export function buildAssetPrompt(form: AssetPromptFormState, mode: AssetGenerati
   } else {
     parts.push(`Create campaign posters${form.offer ? ` for ${form.offer}` : ""}.`);
   }
+  if (form.brandName) parts.push(`Brand: ${form.brandName}.`);
   if (form.goal) parts.push(`Goal: ${form.goal}.`);
   if (form.audience) parts.push(`Audience: ${form.audience}.`);
   if (form.channel) parts.push(`Channel: ${form.channel}.`);
@@ -44,7 +47,7 @@ export function buildAssetPrompt(form: AssetPromptFormState, mode: AssetGenerati
 
 /** True if form has enough content for direct generation (no prior analysis). */
 export function hasDirectPrompt(form: AssetPromptFormState): boolean {
-  return [form.goal, form.audience, form.channel, form.offer, form.tone, form.cta].some(
+  return [form.brandName, form.goal, form.audience, form.channel, form.offer, form.tone, form.cta].some(
     (s) => typeof s === "string" && s.trim().length > 0
   );
 }

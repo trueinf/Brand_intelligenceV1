@@ -6,6 +6,7 @@ import type { Campaign } from "@/types";
 import type { AssetGenerationMode } from "./GenerationModeToggle";
 
 export interface AssetPromptFormState {
+  brandName: string;
   goal: string;
   audience: string;
   channel: string;
@@ -17,6 +18,7 @@ export interface AssetPromptFormState {
 
 export function defaultAssetPromptFormState(): AssetPromptFormState {
   return {
+    brandName: "",
     goal: "",
     audience: "",
     channel: "",
@@ -30,6 +32,7 @@ export function defaultAssetPromptFormState(): AssetPromptFormState {
 function prefilledFromCampaign(campaign: Campaign): Partial<AssetPromptFormState> {
   const ad = campaign.ad_messaging;
   return {
+    brandName: "",
     goal: campaign.objective ?? "",
     audience: campaign.main_keyword ? `Target: ${campaign.main_keyword}` : "",
     channel: campaign.campaign_type ?? "",
@@ -78,6 +81,15 @@ export function PrefilledPromptForm({ campaign, mode, value, onChange }: Prefill
 
   return (
     <div className="space-y-4">
+      <div className="space-y-2">
+        <label htmlFor="asset-brand-name" className={labelClass}>Brand Name</label>
+        <Input
+          id="asset-brand-name"
+          value={state.brandName}
+          onChange={(e) => update({ brandName: e.target.value })}
+          placeholder="e.g. Robert Mondavi"
+        />
+      </div>
       <div className="space-y-2">
         <label htmlFor="asset-goal" className={labelClass}>Goal</label>
         <Input
